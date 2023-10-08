@@ -121,6 +121,19 @@ impl<'a> State<'a> {
         }
     }
 
+    fn eq(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) == r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l == (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l == r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
     fn bin<F>(&mut self, f: F) -> VMRes<bool>
     where
         F: Fn(&mut Self, Value, Value) -> VMRes<Value>,
@@ -172,6 +185,7 @@ impl<'a> State<'a> {
             opcode::ADD => self.bin(Self::add),
             opcode::SUB => self.bin(Self::sub),
             opcode::MUL => self.bin(Self::mul),
+            opcode::EQ => self.bin(Self::eq),
             _ => Err(VMError::UnknownOpcode),
         }
     }

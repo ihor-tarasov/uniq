@@ -2,9 +2,11 @@
 pub enum Token {
     Integer,
     Real,
-    Plus,
-    Minus,
-    Asterisk,
+    Plus, // '+'
+    Minus, // '-'
+    Asterisk, // '*'
+    Equal, // '='
+    EqualEqual, // "=="
     Unknown,
     End,
 }

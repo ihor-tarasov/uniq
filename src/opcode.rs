@@ -3,6 +3,7 @@ pub const RET: u8 = 0x00;
 pub const ADD: u8 = 0x01;
 pub const SUB: u8 = 0x02;
 pub const MUL: u8 = 0x03;
+pub const EQ: u8 = 0x04;
 // 0x20..=0x3F 2 byte opcodes
 pub const INT1: u8 = 0x20;
 // 0x40..=0x5F 3 byte opcodes

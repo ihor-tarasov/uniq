@@ -62,6 +62,18 @@ where
         Ok(token)
     }
 
+    fn double_equal(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::EqualEqual),
+                _ => Ok(Token::Equal)
+            }
+        } else {
+            Ok(Token::Equal)
+        }
+    }
+
     pub fn lex(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         if let Some(c) = self.current {
             match c {
@@ -69,6 +81,7 @@ where
                 b'+' => self.single(Token::Plus),
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
+                b'=' => self.double_equal(),
                 _ => self.single(Token::Unknown),
             }
         } else {
