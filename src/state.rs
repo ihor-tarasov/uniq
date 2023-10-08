@@ -1,4 +1,4 @@
-use crate::{VMRes, VMError, opcode, Value};
+use crate::{opcode, VMError, VMRes, Value};
 
 fn fetch_u8(opcodes: &[u8], offset: usize) -> VMRes<u8> {
     match opcodes.get(offset) {
@@ -121,12 +121,96 @@ impl<'a> State<'a> {
         }
     }
 
+    fn div(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => {
+                if r == 0 {
+                    Err(VMError::DividingByZero)
+                } else {
+                    Ok(Value::Integer(l.wrapping_div(r)))
+                }
+            }
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Real((l as f64) / r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Real(l / (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l / r)),
+            _ => {
+                self.message = Some(format!("Unable to divide {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
     fn eq(&mut self, l: Value, r: Value) -> VMRes<Value> {
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
             (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) == r)),
             (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l == (r as f64))),
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l == r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
+    fn ne(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l != r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) != r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l != (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l != r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
+    fn ls(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l < r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) < r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l < (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l < r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
+    fn le(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) <= r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l <= (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l <= r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
+    fn gr(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l > r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) > r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l > (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l > r)),
+            _ => {
+                self.message = Some(format!("Unable to compare {l} and {r} values."));
+                Err(VMError::BinaryOperation)
+            }
+        }
+    }
+
+    fn ge(&mut self, l: Value, r: Value) -> VMRes<Value> {
+        match (l.clone(), r.clone()) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r)),
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Boolean((l as f64) >= r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Boolean(l >= (r as f64))),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l >= r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
                 Err(VMError::BinaryOperation)
@@ -185,7 +269,13 @@ impl<'a> State<'a> {
             opcode::ADD => self.bin(Self::add),
             opcode::SUB => self.bin(Self::sub),
             opcode::MUL => self.bin(Self::mul),
+            opcode::DIV => self.bin(Self::div),
             opcode::EQ => self.bin(Self::eq),
+            opcode::NE => self.bin(Self::ne),
+            opcode::LS => self.bin(Self::ls),
+            opcode::GR => self.bin(Self::gr),
+            opcode::LE => self.bin(Self::le),
+            opcode::GE => self.bin(Self::ge),
             _ => Err(VMError::UnknownOpcode),
         }
     }

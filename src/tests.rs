@@ -41,4 +41,8 @@ fn base_tests() {
     eval("2 * 0.5", Value::Real(1.0));
     eval("2 * 2 + 2 * 2", Value::Integer(8));
     eval("3 + 3 == 3 * 2 + 1", Value::Boolean(false));
+    eval("2 < 3", Value::Boolean(true));
+    eval("3 != 1", Value::Boolean(true));
+    eval("3 + 3 >= 3 + 3", Value::Boolean(true));
+    eval("3 + 3 > 3 * 2 - 1", Value::Boolean(true));
 }

@@ -5,8 +5,15 @@ pub enum Token {
     Plus, // '+'
     Minus, // '-'
     Asterisk, // '*'
+    Slash, // '/'
     Equal, // '='
-    EqualEqual, // "=="
+    Exclamation, // '!'
+    ExclamationEqual, // '!='
+    EqualEqual, // '=='
+    Less, // '<'
+    Greater, // '>'
+    GreaterEqual, // '>='
+    LessEqual, // '<='
     Unknown,
     End,
 }

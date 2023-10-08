@@ -12,9 +12,14 @@ pub struct Compiler {
 
 fn get_precedence(token: Token) -> u8 {
     match token {
-        Token::EqualEqual => 2,
+        Token::EqualEqual
+        | Token::ExclamationEqual
+        | Token::Greater
+        | Token::Less
+        | Token::LessEqual
+        | Token::GreaterEqual => 2,
         Token::Plus | Token::Minus => 3,
-        Token::Asterisk => 4,
+        Token::Asterisk | Token::Slash => 4,
         _ => 0,
     }
 }
@@ -98,7 +103,13 @@ impl Compiler {
                 Token::Plus => opcode::ADD,
                 Token::Minus => opcode::SUB,
                 Token::Asterisk => opcode::MUL,
+                Token::Slash => opcode::DIV,
                 Token::EqualEqual => opcode::EQ,
+                Token::ExclamationEqual => opcode::NE,
+                Token::Less => opcode::LS,
+                Token::Greater => opcode::GR,
+                Token::LessEqual => opcode::LE,
+                Token::GreaterEqual => opcode::GE,
                 _ => unreachable!(),
             };
 

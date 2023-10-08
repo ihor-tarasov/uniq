@@ -74,6 +74,42 @@ where
         }
     }
 
+    fn double_exclamation(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::ExclamationEqual),
+                _ => Ok(Token::Exclamation)
+            }
+        } else {
+            Ok(Token::Exclamation)
+        }
+    }
+
+    fn double_less(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::LessEqual),
+                _ => Ok(Token::Less)
+            }
+        } else {
+            Ok(Token::Less)
+        }
+    }
+
+    fn double_greater(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::GreaterEqual),
+                _ => Ok(Token::Greater)
+            }
+        } else {
+            Ok(Token::Greater)
+        }
+    }
+
     pub fn lex(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         if let Some(c) = self.current {
             match c {
@@ -81,7 +117,11 @@ where
                 b'+' => self.single(Token::Plus),
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
+                b'/' => self.single(Token::Slash),
+                b'!' => self.double_exclamation(),
                 b'=' => self.double_equal(),
+                b'<' => self.double_less(),
+                b'>' => self.double_greater(),
                 _ => self.single(Token::Unknown),
             }
         } else {
