@@ -1,0 +1,10 @@
+// 0x00..=0x1F 1 byte opcodes
+pub const RET: u8 = 0x00;
+pub const ADD: u8 = 0x01;
+pub const MUL: u8 = 0x02;
+// 0x20..=0x3F 2 byte opcodes
+pub const INT1: u8 = 0x20;
+// 0x40..=0x5F 3 byte opcodes
+pub const INT2: u8 = 0x40;
+// 0x60..=0x7F 9 byte opcodes
+pub const INT8: u8 = 0x60;
