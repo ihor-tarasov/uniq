@@ -18,3 +18,6 @@ pub use state::*;
 pub use value::*;
 
 pub mod opcode;
+
+#[cfg(test)]
+mod tests;
