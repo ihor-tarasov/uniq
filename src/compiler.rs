@@ -12,7 +12,7 @@ pub struct Compiler {
 
 fn get_precedence(token: Token) -> u8 {
     match token {
-        Token::Plus => 2,
+        Token::Plus | Token::Minus => 2,
         Token::Asterisk => 3,
         _ => 0,
     }
@@ -84,6 +84,7 @@ impl Compiler {
 
             let opcode = match self.token {
                 Token::Plus => opcode::ADD,
+                Token::Minus => opcode::SUB,
                 Token::Asterisk => opcode::MUL,
                 _ => unreachable!(),
             };

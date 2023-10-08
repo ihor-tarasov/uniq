@@ -58,6 +58,7 @@ where
             match c {
                 b'0'..=b'9' => self.integer(buf),
                 b'+' => self.single(Token::Plus),
+                b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
                 _ => self.single(Token::Unknown),
             }

@@ -71,6 +71,10 @@ impl<'a> State<'a> {
         Ok(l.wrapping_add(r))
     }
 
+    fn sub(&mut self, l: i64, r: i64) -> VMRes<i64> {
+        Ok(l.wrapping_sub(r))
+    }
+
     fn mul(&mut self, l: i64, r: i64) -> VMRes<i64> {
         Ok(l.wrapping_mul(r))
     }
@@ -116,6 +120,7 @@ impl<'a> State<'a> {
             opcode::INT2 => self.int2(opcodes),
             opcode::INT8 => self.int8(opcodes),
             opcode::ADD => self.bin(Self::add),
+            opcode::SUB => self.bin(Self::sub),
             opcode::MUL => self.bin(Self::mul),
             _ => Err(VMError::UnknownOpcode),
         }
