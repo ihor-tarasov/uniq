@@ -2,6 +2,7 @@
 pub enum CompilerError {
     Utf8(std::str::Utf8Error),
     ParseInt(std::num::ParseIntError),
+    ParseFloat(std::num::ParseFloatError),
     IO(std::io::Error),
     Custom(Box<String>),
 }
@@ -17,6 +18,12 @@ impl From<std::str::Utf8Error> for CompilerError {
 impl From<std::num::ParseIntError> for CompilerError {
     fn from(value: std::num::ParseIntError) -> Self {
         Self::ParseInt(value)
+    }
+}
+
+impl From<std::num::ParseFloatError> for CompilerError {
+    fn from(value: std::num::ParseFloatError) -> Self {
+        Self::ParseFloat(value)
     }
 }
 

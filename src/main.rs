@@ -1,4 +1,4 @@
-use uniq::{Compiler, State, SliceIter};
+use uniq::{Compiler, State, SliceIter, Value};
 
 fn compile<T, I>(t: T) -> Option<Vec<u8>>
 where
@@ -16,7 +16,7 @@ where
 }
 
 fn run(opcodes: &[u8]) {
-    let mut stack = [0i64; 256];
+    let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
     match State::new(&mut stack).run(&opcodes) {
         Ok(value) => println!("{value}"),
         Err(error) => eprintln!("Runtime error: {error:?}"),
@@ -33,5 +33,5 @@ where
 }
 
 fn main() {
-    eval("2 * 410000");
+    eval("1 - 2.5");
 }

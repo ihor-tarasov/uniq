@@ -6,6 +6,7 @@ mod compiler;
 mod vm_error;
 mod comp_error;
 mod state;
+mod value;
 
 pub use read_iter::*;
 pub use slice_iter::*;
@@ -14,5 +15,6 @@ pub use compiler::*;
 pub use vm_error::*;
 pub use comp_error::*;
 pub use state::*;
+pub use value::*;
 
 pub mod opcode;

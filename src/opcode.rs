@@ -9,3 +9,4 @@ pub const INT1: u8 = 0x20;
 pub const INT2: u8 = 0x40;
 // 0x60..=0x7F 9 byte opcodes
 pub const INT8: u8 = 0x60;
+pub const REAL: u8 = 0x61;

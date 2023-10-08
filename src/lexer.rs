@@ -37,15 +37,24 @@ where
 
     fn integer(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         buf.clear();
+        let mut has_dot = false;
         while let Some(c) = self.current {
             if c.is_ascii_digit() {
                 buf.push(c);
                 self.advance()?;
+            } else if c == b'.' {
+                if has_dot {
+                    break;
+                } else {
+                    has_dot = true;
+                    buf.push(c);
+                    self.advance()?;
+                }
             } else {
                 break;
             }
         }
-        Ok(Token::Integer)
+        Ok(if has_dot { Token::Real } else { Token::Integer })
     }
 
     fn single(&mut self, token: Token) -> std::io::Result<Token> {

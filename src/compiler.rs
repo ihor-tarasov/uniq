@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{lexer::Lexer, opcode, Token, CompRes, raise};
+use crate::{lexer::Lexer, opcode, raise, CompRes, Token};
 
 pub struct Compiler {
     token: Token,
@@ -56,7 +56,17 @@ impl Compiler {
             self.opcodes.push(opcode::INT8);
             self.opcodes.extend(value.to_be_bytes());
         }
-        self.lex(lexer) // Skip integer value.
+        self.lex(lexer) // Skip value.
+    }
+
+    fn real<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    where
+        I: Iterator<Item = std::io::Result<u8>>,
+    {
+        let value = std::str::from_utf8(&self.buffer)?.parse::<f64>()?;
+        self.opcodes.push(opcode::REAL);
+        self.opcodes.extend(value.to_be_bytes());
+        self.lex(lexer) // Skip value.
     }
 
     fn primary<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
@@ -65,6 +75,7 @@ impl Compiler {
     {
         match self.token {
             Token::Integer => self.integer(lexer),
+            Token::Real => self.real(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),
