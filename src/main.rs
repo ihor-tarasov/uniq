@@ -17,9 +17,16 @@ where
 
 fn run(opcodes: &[u8]) {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    match State::new(&mut stack).run(&opcodes) {
+    let mut state = State::new(&mut stack);
+    match state.run(&opcodes) {
         Ok(value) => println!("{value}"),
-        Err(error) => eprintln!("Runtime error: {error:?}"),
+        Err(error) => {
+            if let Some(message) = state.message() {
+                eprintln!("Runtime error: {message}")
+            } else {
+                eprintln!("Runtime error: {error:?}")
+            }
+        },
     }
 }
 
@@ -33,5 +40,5 @@ where
 }
 
 fn main() {
-    eval("3 + 3 == 3 * 2");
+    eval("3 + 3 == 3 * 2 == 3");
 }

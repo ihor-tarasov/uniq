@@ -194,4 +194,8 @@ impl<'a> State<'a> {
         while self.step(opcodes)? {}
         self.pop()
     }
+
+    pub fn message(&self) -> Option<&str> {
+        self.message.as_ref().map(|s| s.as_str())
+    }
 }
