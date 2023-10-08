@@ -1,13 +1,13 @@
-use uniq::{Compiler, State, SliceIter, Value};
+use uniq::{Compiler, State, SliceIter, Value, Chunk};
 
-fn compile<T, I>(t: T) -> Option<Vec<u8>>
+fn compile<T, I>(t: T) -> Option<Chunk>
 where
     T: Into<I>,
     I: Iterator<Item = std::io::Result<u8>>,
 {
-    let mut compiler = Compiler::new();
-    match compiler.compile(t.into()) {
-        Ok(_) => Some(compiler.finish()),
+    let mut compiler = Compiler::new(0);
+    match compiler.compile(0, t.into()) {
+        Ok(_) => Some(compiler.into_chunk()),
         Err(error) => {
             eprintln!("Compilation error: {error:?}");
             None
@@ -15,10 +15,10 @@ where
     }
 }
 
-fn run(opcodes: &[u8]) {
+fn run(chunk: &Chunk) {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
     let mut state = State::new(&mut stack);
-    match state.run(&opcodes) {
+    match state.run(&chunk.opcodes) {
         Ok(value) => println!("{value}"),
         Err(error) => {
             if let Some(message) = state.message() {
@@ -34,8 +34,8 @@ fn eval<'a, T>(code: T)
 where
     T: Into<SliceIter<'a>>,
 {
-    if let Some(opcodes) = compile(code) {
-        run(&opcodes)
+    if let Some(chunk) = compile(code) {
+        run(&chunk)
     }
 }
 

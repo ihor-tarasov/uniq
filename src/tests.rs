@@ -1,13 +1,13 @@
-use crate::{Value, State, SliceIter, Compiler};
+use crate::{Value, State, SliceIter, Compiler, Chunk};
 
-fn compile<T, I>(t: T) -> Option<Vec<u8>>
+fn compile<T, I>(t: T) -> Option<Chunk>
 where
     T: Into<I>,
     I: Iterator<Item = std::io::Result<u8>>,
 {
-    let mut compiler = Compiler::new();
-    match compiler.compile(t.into()) {
-        Ok(_) => Some(compiler.finish()),
+    let mut compiler = Compiler::new(0);
+    match compiler.compile(0, t.into()) {
+        Ok(_) => Some(compiler.into_chunk()),
         Err(error) => {
             assert!(false, "Compilation error: {error:?}");
             None
@@ -15,9 +15,9 @@ where
     }
 }
 
-fn run(opcodes: &[u8]) -> Value {
+fn run(chunk: &Chunk) -> Value {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    match State::new(&mut stack).run(&opcodes) {
+    match State::new(&mut stack).run(&chunk.opcodes) {
         Ok(value) => value,
         Err(error) => {
             panic!("Runtime error: {error:?}")
@@ -29,8 +29,8 @@ fn eval<'a, T>(code: T, expected: Value)
 where
     T: Into<SliceIter<'a>>,
 {
-    if let Some(opcodes) = compile(code) {
-        assert_eq!(run(&opcodes), expected)
+    if let Some(chunk) = compile(code) {
+        assert_eq!(run(&chunk), expected)
     }
 }
 

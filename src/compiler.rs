@@ -1,13 +1,24 @@
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 use crate::{lexer::Lexer, opcode, raise, CompRes, Token};
+
+pub struct SrcPos {
+    pub range: Range<usize>,
+    pub source_id: usize,
+}
+
+pub struct Chunk {
+    pub opcodes: Box<[u8]>,
+    pub ranges: HashMap<usize, SrcPos>,
+}
 
 pub struct Compiler {
     token: Token,
     range: Range<usize>,
     opcodes: Vec<u8>,
-    // ranges: HashMap<usize, Range<usize>>,
+    ranges: HashMap<usize, SrcPos>,
     buffer: Vec<u8>,
+    source_id: usize,
 }
 
 fn get_precedence(token: Token) -> u8 {
@@ -25,13 +36,14 @@ fn get_precedence(token: Token) -> u8 {
 }
 
 impl Compiler {
-    pub fn new() -> Self {
+    pub fn new(source_id: usize) -> Self {
         Self {
             token: Token::End,
             range: 0..0,
             opcodes: Vec::new(),
-            // ranges: HashMap::new(),
+            ranges: HashMap::new(),
             buffer: Vec::new(),
+            source_id,
         }
     }
 
@@ -113,6 +125,8 @@ impl Compiler {
                 _ => unreachable!(),
             };
 
+            let range = self.range.clone();
+
             self.lex(lexer)?;
             self.primary(lexer)?;
 
@@ -121,6 +135,14 @@ impl Compiler {
             if current < next {
                 self.binary(lexer, current + 1)?;
             }
+
+            self.ranges.insert(
+                self.opcodes.len(),
+                SrcPos {
+                    range,
+                    source_id: self.source_id,
+                },
+            );
 
             self.opcodes.push(opcode);
         }
@@ -134,10 +156,11 @@ impl Compiler {
         self.binary(lexer, 1)
     }
 
-    pub fn compile<I>(&mut self, iter: I) -> CompRes
+    pub fn compile<I>(&mut self, source_id: usize, iter: I) -> CompRes
     where
         I: Iterator<Item = std::io::Result<u8>>,
     {
+        self.source_id = source_id;
         let mut lexer = Lexer::new(iter)?;
         self.lex(&mut lexer)?;
         self.expression(&mut lexer)?;
@@ -145,7 +168,10 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn finish(self) -> Vec<u8> {
-        self.opcodes
+    pub fn into_chunk(self) -> Chunk {
+        Chunk {
+            opcodes: self.opcodes.into_boxed_slice(),
+            ranges: self.ranges,
+        }
     }
 }
