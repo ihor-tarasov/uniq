@@ -2,6 +2,9 @@
 pub enum Token {
     Integer,
     Real,
+    Identifier,
+    True, // 'true'
+    False, // 'false'
     Plus, // '+'
     Minus, // '-'
     Asterisk, // '*'

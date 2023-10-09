@@ -258,6 +258,12 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn boolean(&mut self, value: bool) -> VMRes<bool> {
+        self.push(Value::Boolean(value))?;
+        self.program_counter += 1;
+        Ok(true)
+    }
+
     pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
@@ -265,6 +271,8 @@ impl<'a> State<'a> {
             opcode::INT1 => self.int1(opcodes),
             opcode::INT2 => self.int2(opcodes),
             opcode::INT8 => self.int8(opcodes),
+            opcode::TRUE => self.boolean(true),
+            opcode::FALSE => self.boolean(false),
             opcode::REAL => self.real(opcodes),
             opcode::ADD => self.bin(Self::add),
             opcode::SUB => self.bin(Self::sub),

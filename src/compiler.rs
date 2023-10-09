@@ -87,6 +87,14 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
+    fn boolean<R>(&mut self, lexer: &mut Lexer<R>, value: bool) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        self.opcodes.push(if value { opcode::TRUE } else { opcode::FALSE });
+        self.lex(lexer) // Skip value.
+    }
+
     fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
@@ -94,6 +102,8 @@ impl Compiler {
         match self.token {
             Token::Integer => self.integer(lexer),
             Token::Real => self.real(lexer),
+            Token::True => self.boolean(lexer, true),
+            Token::False => self.boolean(lexer, false),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),

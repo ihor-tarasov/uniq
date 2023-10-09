@@ -10,6 +10,8 @@ pub const LS: u8 = 0x07;
 pub const GR: u8 = 0x08;
 pub const LE: u8 = 0x09;
 pub const GE: u8 = 0x0A;
+pub const TRUE: u8 = 0x0B;
+pub const FALSE: u8 = 0x0C;
 
 // 0x20..=0x3F 2 byte opcodes
 pub const INT1: u8 = 0x20;

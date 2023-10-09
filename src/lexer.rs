@@ -115,10 +115,26 @@ where
         }
     }
 
+    fn identifier(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
+        buf.clear();
+        while let Some(c) = self.current {
+            if c.is_ascii_alphanumeric() || c == b'_' {
+                buf.push(c);
+                self.advance()?;
+            } else {
+                break;
+            }
+        }
+        Ok(match buf.as_slice() {
+            b"true" => Token::True,
+            b"false" => Token::False,
+            _ => Token::Identifier,
+        })
+    }
+
     pub fn lex(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         if let Some(c) = self.current {
             match c {
-                b'0'..=b'9' => self.integer(buf),
                 b'+' => self.single(Token::Plus),
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
@@ -127,6 +143,8 @@ where
                 b'=' => self.double_equal(),
                 b'<' => self.double_less(),
                 b'>' => self.double_greater(),
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.identifier(buf),
+                b'0'..=b'9' => self.integer(buf),
                 _ => self.single(Token::Unknown),
             }
         } else {
