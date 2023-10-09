@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Range};
 
-use crate::{lexer::Lexer, opcode, raise, CompRes, Token};
+use crate::{lexer::Lexer, opcode, raise, CompRes, Token, CompilerError};
 
 pub struct SrcPos {
     pub range: Range<usize>,
@@ -59,6 +59,14 @@ impl Compiler {
         Ok(())
     }
 
+    fn expect(&self, token: Token) -> CompRes {
+        if self.token == token {
+            Ok(())
+        } else {
+            Err(CompilerError::Custom(Box::new(format!("Expected {token}, found {}", self.token))))
+        }
+    }
+
     fn integer<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
@@ -95,6 +103,16 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
+    fn subexpression<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '('.
+        self.expression(lexer)?;
+        self.expect(Token::RightParen)?;
+        self.lex(lexer) // Skip ')'.
+    }
+
     fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
@@ -104,6 +122,7 @@ impl Compiler {
             Token::Real => self.real(lexer),
             Token::True => self.boolean(lexer, true),
             Token::False => self.boolean(lexer, false),
+            Token::LeftParen => self.subexpression(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),

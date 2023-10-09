@@ -23,7 +23,7 @@ where
         Ok(_) => Ok(compiler.into_chunk()),
         Err(error) => {
             let mut buffer = range_info(path, read, compiler.range());
-            writeln!(buffer, "Compile error: {error:?}").unwrap();
+            writeln!(buffer, "Compile error: {error}").unwrap();
             Err(buffer)
         }
     }

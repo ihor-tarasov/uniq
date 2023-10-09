@@ -8,6 +8,19 @@ pub enum CompilerError {
     Fmt(std::fmt::Error),
 }
 
+impl std::fmt::Display for CompilerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompilerError::Utf8(error) => write!(f, "{error}"),
+            CompilerError::ParseInt(error) => write!(f, "{error}"),
+            CompilerError::ParseFloat(error) => write!(f, "{error}"),
+            CompilerError::IO(error) => write!(f, "{error}"),
+            CompilerError::Custom(error) => write!(f, "{error}"),
+            CompilerError::Fmt(error) => write!(f, "{error}"),
+        }
+    }
+}
+
 pub type CompRes<T = ()> = Result<T, CompilerError>;
 
 impl From<std::str::Utf8Error> for CompilerError {

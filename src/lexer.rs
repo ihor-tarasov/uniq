@@ -139,6 +139,8 @@ where
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
+                b'(' => self.single(Token::LeftParen),
+                b')' => self.single(Token::RightParen),
                 b'!' => self.double_exclamation(),
                 b'=' => self.double_equal(),
                 b'<' => self.double_less(),
