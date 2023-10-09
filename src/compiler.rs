@@ -193,6 +193,7 @@ impl Compiler {
         let mut lexer = Lexer::new(read)?;
         self.lex(&mut lexer)?;
         self.expression(&mut lexer)?;
+        self.expect(Token::End)?;
         self.opcodes.push(opcode::RET);
         Ok(())
     }
