@@ -1,28 +1,16 @@
-use crate::{Value, SliceRead, utils, Chunk, State};
-
-fn run(chunk: &Chunk, expected: Value) {
-    let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    let mut state = State::new(&mut stack);
-    match state.run(&chunk.opcodes) {
-        Ok(value) => {
-            assert_eq!(value, expected);
-        },
-        Err(error) => {
-            if let Some(message) = state.message() {
-                panic!("Runtime error: {message}");
-            } else {
-                panic!("Runtime error: {error:?}");
-            }
-        },
-    }
-}
+use crate::{Value, SliceRead, utils};
 
 fn eval<'a, T>(code: T, expected: Value)
 where
     T: Into<SliceRead<'a>>,
 {
-    if let Some(chunk) = utils::compile("stdin", code.into()) {
-        run(&chunk, expected);
+    let mut read = code.into();
+    match utils::compile("stdin", &mut read) {
+        Ok(chunk) => match utils::run(&["stdin"], &mut read, &chunk) {
+            Ok(value) => assert_eq!(value, expected),
+            Err(error) => panic!("{error}"),
+        },
+        Err(error) => panic!("{error}"),
     }
 }
 

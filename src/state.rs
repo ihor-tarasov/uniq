@@ -288,4 +288,8 @@ impl<'a> State<'a> {
     pub fn message(&self) -> Option<&str> {
         self.message.as_ref().map(|s| s.as_str())
     }
+
+    pub fn program_counter(&self) -> usize {
+        self.program_counter
+    }
 }

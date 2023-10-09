@@ -1,40 +1,61 @@
-use crate::{Chunk, Compiler, line, Value, State, SliceRead};
-use std::fmt::Write;
+use crate::{line, Chunk, Compiler, SliceRead, State, Value};
+use std::{fmt::Write, ops::Range};
 
-pub fn compile<R>(path: &str, mut read: R) -> Option<Chunk>
+pub fn range_info<R>(path: &str, read: &mut R, range: Range<usize>) -> String
+where
+    R: std::io::Read + std::io::Seek,
+{
+    read.seek(std::io::SeekFrom::Start(0)).unwrap();
+    let info = line::create(read, range.start).unwrap();
+    let mut buffer = String::new();
+    writeln!(buffer, "File \"{path}\", line: {}:", info.number).unwrap();
+    line::print_line(read, info.start, &mut buffer).unwrap();
+    line::mark_range(info.start, range, &mut buffer).unwrap();
+    buffer
+}
+
+pub fn compile<R>(path: &str, read: &mut R) -> Result<Chunk, String>
 where
     R: std::io::Read + std::io::Seek,
 {
     let mut compiler = Compiler::new(0);
-    match compiler.compile(0, &mut read) {
-        Ok(_) => Some(compiler.into_chunk()),
+    match compiler.compile(0, read) {
+        Ok(_) => Ok(compiler.into_chunk()),
         Err(error) => {
-            let range = compiler.range();
-            read.seek(std::io::SeekFrom::Start(0)).unwrap();
-            let info = line::create(&mut read, range.start).unwrap();
-            let mut buffer = String::new();
-            writeln!(buffer, "File \"{path}\", line: {}:", info.number).unwrap();
-            line::print_line(&mut read, info.start, &mut buffer).unwrap();
-            line::mark_range(info.start, range, &mut buffer).unwrap();
+            let mut buffer = range_info(path, read, compiler.range());
             writeln!(buffer, "Compile error: {error:?}").unwrap();
-            eprintln!("{buffer}");
-            None
+            Err(buffer)
         }
     }
 }
 
-pub fn run(chunk: &Chunk) {
+pub fn run<R>(paths: &[&str], read: &mut R, chunk: &Chunk) -> Result<Value, String>
+where
+    R: std::io::Read + std::io::Seek,
+{
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
     let mut state = State::new(&mut stack);
     match state.run(&chunk.opcodes) {
-        Ok(value) => println!("{value}"),
+        Ok(value) => Ok(value),
         Err(error) => {
-            if let Some(message) = state.message() {
-                eprintln!("Runtime error: {message}")
+            if let Some(pos) = chunk.ranges.get(&state.program_counter()) {
+                let mut buffer = range_info(paths[pos.source_id], read, pos.range.clone());
+                if let Some(message) = state.message() {
+                    writeln!(buffer, "Runtime error: {message}").unwrap();
+                } else {
+                    writeln!(buffer, "Runtime error: {error:?}").unwrap();
+                }
+                Err(buffer)
             } else {
-                eprintln!("Runtime error: {error:?}")
+                let mut buffer = String::new();
+                if let Some(message) = state.message() {
+                    writeln!(buffer, "Runtime error: {message}").unwrap();
+                } else {
+                    writeln!(buffer, "Runtime error: {error:?}").unwrap();
+                }
+                Err(buffer)
             }
-        },
+        }
     }
 }
 
@@ -42,7 +63,12 @@ pub fn eval<'a, T>(code: T)
 where
     T: Into<SliceRead<'a>>,
 {
-    if let Some(chunk) = compile("stdin", code.into()) {
-        run(&chunk)
+    let mut read = code.into();
+    match compile("stdin", &mut read) {
+        Ok(chunk) => match run(&["stdin"], &mut read, &chunk) {
+            Ok(value) => println!("{value}"),
+            Err(error) => eprintln!("{error}"),
+        },
+        Err(error) => eprintln!("{error}"),
     }
 }
