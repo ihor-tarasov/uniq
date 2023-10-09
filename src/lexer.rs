@@ -1,38 +1,43 @@
 use crate::Token;
 
-pub struct Lexer<I> {
-    iter: I,
+fn read_byte<R>(read: &mut R) -> std::io::Result<Option<u8>>
+where
+    R: std::io::Read,
+{
+    let mut buf = [0u8; 1];
+    match read.read_exact(&mut buf) {
+        Ok(_) => Ok(Some(buf[0])),
+        Err(error) => match error.kind() {
+            std::io::ErrorKind::UnexpectedEof => Ok(None),
+            _ => Err(error),
+        },
+    }
+}
+
+pub struct Lexer<'a, R> {
+    read: &'a mut R,
     current: Option<u8>,
     offset: usize,
 }
 
-impl<I> Lexer<I>
+impl<'a, R> Lexer<'a, R>
 where
-    I: Iterator<Item = std::io::Result<u8>>,
+    R: std::io::Read,
 {
-    pub fn new(mut iter: I) -> std::io::Result<Self> {
+    pub fn new(read: &'a mut R) -> std::io::Result<Self> {
         Ok(Self {
-            current: match iter.next() {
-                Some(r) => Some(r?),
-                None => None,
-            },
+            current: read_byte(read)?,
             offset: 0,
-            iter,
+            read,
         })
     }
 
     fn advance(&mut self) -> std::io::Result<()> {
-        match self.iter.next() {
-            Some(data) => {
-                self.current = Some(data?);
-                self.offset += 1;
-                Ok(())
-            }
-            None => {
-                self.current = None;
-                Ok(())
-            }
+        self.current = read_byte(self.read)?;
+        if self.current.is_some() {
+            self.offset += 1;
         }
+        Ok(())
     }
 
     fn integer(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {

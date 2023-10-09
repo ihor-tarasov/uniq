@@ -1,36 +1,28 @@
-use crate::{Value, State, SliceIter, Compiler, Chunk};
+use crate::{Value, SliceRead, utils, Chunk, State};
 
-fn compile<T, I>(t: T) -> Option<Chunk>
-where
-    T: Into<I>,
-    I: Iterator<Item = std::io::Result<u8>>,
-{
-    let mut compiler = Compiler::new(0);
-    match compiler.compile(0, t.into()) {
-        Ok(_) => Some(compiler.into_chunk()),
-        Err(error) => {
-            assert!(false, "Compilation error: {error:?}");
-            None
-        }
-    }
-}
-
-fn run(chunk: &Chunk) -> Value {
+fn run(chunk: &Chunk, expected: Value) {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    match State::new(&mut stack).run(&chunk.opcodes) {
-        Ok(value) => value,
+    let mut state = State::new(&mut stack);
+    match state.run(&chunk.opcodes) {
+        Ok(value) => {
+            assert_eq!(value, expected);
+        },
         Err(error) => {
-            panic!("Runtime error: {error:?}")
+            if let Some(message) = state.message() {
+                panic!("Runtime error: {message}");
+            } else {
+                panic!("Runtime error: {error:?}");
+            }
         },
     }
 }
 
 fn eval<'a, T>(code: T, expected: Value)
 where
-    T: Into<SliceIter<'a>>,
+    T: Into<SliceRead<'a>>,
 {
-    if let Some(chunk) = compile(code) {
-        assert_eq!(run(&chunk), expected)
+    if let Some(chunk) = utils::compile("stdin", code.into()) {
+        run(&chunk, expected);
     }
 }
 

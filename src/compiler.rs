@@ -47,9 +47,9 @@ impl Compiler {
         }
     }
 
-    fn lex<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    fn lex<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         lexer.skip_whitespaces()?;
         let start = lexer.offset();
@@ -59,9 +59,9 @@ impl Compiler {
         Ok(())
     }
 
-    fn integer<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    fn integer<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         let value = std::str::from_utf8(&self.buffer)?.parse::<u64>()?;
         if value <= 0xFF {
@@ -77,9 +77,9 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
-    fn real<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    fn real<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         let value = std::str::from_utf8(&self.buffer)?.parse::<f64>()?;
         self.opcodes.push(opcode::REAL);
@@ -87,9 +87,9 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
-    fn primary<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         match self.token {
             Token::Integer => self.integer(lexer),
@@ -100,9 +100,9 @@ impl Compiler {
         }
     }
 
-    fn binary<I>(&mut self, lexer: &mut Lexer<I>, precedence: u8) -> CompRes
+    fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         loop {
             let current = get_precedence(self.token);
@@ -148,20 +148,20 @@ impl Compiler {
         }
     }
 
-    fn expression<I>(&mut self, lexer: &mut Lexer<I>) -> CompRes
+    fn expression<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         self.primary(lexer)?;
         self.binary(lexer, 1)
     }
 
-    pub fn compile<I>(&mut self, source_id: usize, iter: I) -> CompRes
+    pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> CompRes
     where
-        I: Iterator<Item = std::io::Result<u8>>,
+        R: std::io::Read,
     {
         self.source_id = source_id;
-        let mut lexer = Lexer::new(iter)?;
+        let mut lexer = Lexer::new(read)?;
         self.lex(&mut lexer)?;
         self.expression(&mut lexer)?;
         self.opcodes.push(opcode::RET);
@@ -173,5 +173,13 @@ impl Compiler {
             opcodes: self.opcodes.into_boxed_slice(),
             ranges: self.ranges,
         }
+    }
+
+    pub fn range(&self) -> Range<usize> {
+        self.range.clone()
+    }
+
+    pub fn source_id(&self) -> usize {
+        self.source_id
     }
 }
