@@ -1,12 +1,22 @@
 use std::io::Write;
 
 fn main() {
+    let mut code = String::new();
     let mut line = String::new();
     loop {
-        line.clear();
+        code.clear();
         print!("-> ");
-        std::io::stdout().flush().unwrap();
-        std::io::stdin().read_line(&mut line).unwrap();
-        uniq::utils::eval(line.as_str());
+        loop {
+            line.clear();
+            std::io::stdout().flush().unwrap();
+            std::io::stdin().read_line(&mut line).unwrap();
+            code.push_str(line.as_str());
+            
+            if uniq::utils::eval_eof(code.as_str()) {
+                print!("-| ");
+            } else {
+                break;
+            }
+        }
     }
 }

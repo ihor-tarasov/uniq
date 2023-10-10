@@ -7,6 +7,9 @@ pub enum Token {
     False, // 'false'
     LeftParen, // '('
     RightParen, // ')'
+    LeftBrace, // '{'
+    RightBrace, // '}'
+    Semicolon, // ';'
     Plus, // '+'
     Minus, // '-'
     Asterisk, // '*'
@@ -33,6 +36,9 @@ impl std::fmt::Display for Token {
             Token::False => write!(f, "'false'"),
             Token::LeftParen => write!(f, "'('"),
             Token::RightParen => write!(f, "')'"),
+            Token::LeftBrace => write!(f, "'{{'"),
+            Token::RightBrace => write!(f, "'}}'"),
+            Token::Semicolon => write!(f, "';'"),
             Token::Plus => write!(f, "'+'"),
             Token::Minus => write!(f, "'-'"),
             Token::Asterisk => write!(f, "'*'"),

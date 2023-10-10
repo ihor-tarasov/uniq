@@ -264,6 +264,12 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn drop(&mut self) -> VMRes<bool> {
+        self.pop()?;
+        self.program_counter += 1;
+        Ok(true)
+    }
+
     pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
@@ -284,6 +290,7 @@ impl<'a> State<'a> {
             opcode::GR => self.bin(Self::gr),
             opcode::LE => self.bin(Self::le),
             opcode::GE => self.bin(Self::ge),
+            opcode::DROP => self.drop(),
             _ => Err(VMError::UnknownOpcode),
         }
     }

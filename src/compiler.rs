@@ -113,6 +113,45 @@ impl Compiler {
         self.lex(lexer) // Skip ')'.
     }
 
+    fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        self.expression(lexer)
+    }
+
+    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        let mut first_time = true;
+        loop {
+            if first_time {
+                first_time = false;
+            } else {
+                self.opcodes.push(opcode::DROP);
+            }
+            self.statement(lexer)?;
+
+            if self.token == Token::Semicolon {
+                self.lex(lexer)?; // Skip ';'
+            }
+            
+            if self.token == until {
+                break Ok(());
+            }
+        }
+    }
+
+    fn block<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '{'.
+        self.statements(lexer, Token::RightBrace)?;
+        self.lex(lexer) // Skip '}'.
+    }
+
     fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
@@ -123,6 +162,7 @@ impl Compiler {
             Token::True => self.boolean(lexer, true),
             Token::False => self.boolean(lexer, false),
             Token::LeftParen => self.subexpression(lexer),
+            Token::LeftBrace => self.block(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),

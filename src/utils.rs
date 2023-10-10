@@ -29,6 +29,26 @@ where
     }
 }
 
+pub fn compile_eof<R>(path: &str, read: &mut R) -> Result<Chunk, Option<String>>
+where
+    R: std::io::Read + std::io::Seek,
+{
+    let mut compiler = Compiler::new(0);
+    match compiler.compile(0, read) {
+        Ok(_) => Ok(compiler.into_chunk()),
+        Err(error) => {
+            let range = compiler.range();
+            if range.start == range.end {
+                Err(None)
+            } else {
+                let mut buffer = range_info(path, read, range);
+                writeln!(buffer, "Compile error: {error}").unwrap();
+                Err(Some(buffer))
+            }
+        }
+    }
+}
+
 pub fn run<R>(paths: &[&str], read: &mut R, chunk: &Chunk) -> Result<Value, String>
 where
     R: std::io::Read + std::io::Seek,
@@ -70,5 +90,30 @@ where
             Err(error) => eprintln!("{error}"),
         },
         Err(error) => eprintln!("{error}"),
+    }
+}
+
+pub fn eval_eof<'a, T>(code: T) -> bool
+where
+    T: Into<SliceRead<'a>>,
+{
+    let mut read = code.into();
+    match compile_eof("stdin", &mut read) {
+        Ok(chunk) => match run(&["stdin"], &mut read, &chunk) {
+            Ok(value) => {
+                println!("{value}");
+                false
+            },
+            Err(error) => {
+                eprintln!("{error}");
+                false
+            }
+        },
+        Err(error) => if let Some(error) = error {
+            eprintln!("{error}");
+            false
+        } else {
+            true
+        }
     }
 }
