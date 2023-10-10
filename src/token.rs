@@ -5,6 +5,8 @@ pub enum Token {
     Identifier,
     True, // 'true'
     False, // 'false'
+    If, // 'if'
+    Else, // 'else'
     LeftParen, // '('
     RightParen, // ')'
     LeftBrace, // '{'
@@ -34,6 +36,8 @@ impl std::fmt::Display for Token {
             Token::Identifier => write!(f, "identifier"),
             Token::True => write!(f, "'true'"),
             Token::False => write!(f, "'false'"),
+            Token::If => write!(f, "'if'"),
+            Token::Else => write!(f, "'else'"),
             Token::LeftParen => write!(f, "'('"),
             Token::RightParen => write!(f, "')'"),
             Token::LeftBrace => write!(f, "'{{'"),

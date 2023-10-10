@@ -128,6 +128,8 @@ where
         Ok(match buf.as_slice() {
             b"true" => Token::True,
             b"false" => Token::False,
+            b"if" => Token::If,
+            b"else" => Token::Else,
             _ => Token::Identifier,
         })
     }

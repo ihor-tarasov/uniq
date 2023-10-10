@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops::Range};
 
-use crate::{lexer::Lexer, opcode, raise, CompRes, Token, CompilerError};
+use crate::{lexer::Lexer, opcode, raise, CompRes, CompilerError, Token};
 
 pub struct SrcPos {
     pub range: Range<usize>,
@@ -18,6 +18,7 @@ pub struct Compiler {
     opcodes: Vec<u8>,
     ranges: HashMap<usize, SrcPos>,
     buffer: Vec<u8>,
+    address_stack: Vec<usize>,
     source_id: usize,
 }
 
@@ -43,6 +44,7 @@ impl Compiler {
             opcodes: Vec::new(),
             ranges: HashMap::new(),
             buffer: Vec::new(),
+            address_stack: Vec::new(),
             source_id,
         }
     }
@@ -63,7 +65,66 @@ impl Compiler {
         if self.token == token {
             Ok(())
         } else {
-            Err(CompilerError::Custom(Box::new(format!("Expected {token}, found {}", self.token))))
+            Err(CompilerError::Custom(Box::new(format!(
+                "Expected {token}, found {}",
+                self.token
+            ))))
+        }
+    }
+
+    fn set_jf(&mut self, address: usize, value: usize) {
+        if value <= 0xFFFF {
+            self.opcodes[address] = opcode::JF2;
+            (value as u16)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+        } else if value <= 0xFFFFFFFF {
+            self.opcodes[address] = opcode::JF4;
+            (value as u32)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+        } else {
+            self.opcodes[address] = opcode::JF8;
+            (value as u64)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+        }
+    }
+
+    fn set_jp(&mut self, address: usize, value: usize) {
+        if value <= 0xFFFF {
+            self.opcodes[address] = opcode::JP2;
+            (value as u16)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+        } else if value <= 0xFFFFFFFF {
+            self.opcodes[address] = opcode::JP4;
+            (value as u32)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+        } else {
+            self.opcodes[address] = opcode::JP8;
+            (value as u64)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
         }
     }
 
@@ -99,7 +160,8 @@ impl Compiler {
     where
         R: std::io::Read,
     {
-        self.opcodes.push(if value { opcode::TRUE } else { opcode::FALSE });
+        self.opcodes
+            .push(if value { opcode::TRUE } else { opcode::FALSE });
         self.lex(lexer) // Skip value.
     }
 
@@ -136,7 +198,7 @@ impl Compiler {
             if self.token == Token::Semicolon {
                 self.lex(lexer)?; // Skip ';'
             }
-            
+
             if self.token == until {
                 break Ok(());
             }
@@ -152,6 +214,57 @@ impl Compiler {
         self.lex(lexer) // Skip '}'.
     }
 
+    fn if_stat<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    where
+        R: std::io::Read,
+    {
+        let mut address_stack_size = 0;
+        loop {
+            self.lex(lexer)?; // Skip 'if'.
+            self.expression(lexer)?; // Condition.
+            
+            // JF to the next block.
+            let next_jf_address = self.opcodes.len();
+            self.opcodes.extend([0; 9]);
+
+            self.expect(Token::LeftBrace)?;
+
+            self.block(lexer)?;
+
+            if self.token == Token::Else {
+                self.lex(lexer)?; // Skip 'else'.
+
+                if self.token == Token::LeftBrace {
+                    self.address_stack.push(self.opcodes.len());
+                    address_stack_size += 1;
+                    self.opcodes.extend([0; 9]);
+                    self.set_jf(next_jf_address, self.opcodes.len());
+                    self.block(lexer)?;
+                    break;
+                } else if self.token == Token::If {
+                    self.address_stack.push(self.opcodes.len());
+                    address_stack_size += 1;
+                    self.opcodes.extend([0; 9]);
+                    self.set_jf(next_jf_address, self.opcodes.len());
+                }
+            } else {
+                self.address_stack.push(self.opcodes.len());
+                address_stack_size += 1;
+                self.opcodes.extend([0; 9]);
+                self.set_jf(next_jf_address, self.opcodes.len());
+                self.opcodes.push(opcode::VOID);
+                break;
+            }
+        }
+
+        for _ in 0..address_stack_size {
+            let jp_address = self.address_stack.pop().unwrap();
+            self.set_jp(jp_address, self.opcodes.len());
+        }
+
+        Ok(())
+    }
+
     fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
@@ -163,6 +276,7 @@ impl Compiler {
             Token::False => self.boolean(lexer, false),
             Token::LeftParen => self.subexpression(lexer),
             Token::LeftBrace => self.block(lexer),
+            Token::If => self.if_stat(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),

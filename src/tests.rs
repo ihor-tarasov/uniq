@@ -25,4 +25,12 @@ fn base_tests() {
     eval("3 != 1", Value::Boolean(true));
     eval("3 + 3 >= 3 + 3", Value::Boolean(true));
     eval("3 + 3 > 3 * 2 - 1", Value::Boolean(true));
+    eval("if 2 == 4 { 2 }", Value::Void);
+    eval("if 2 == 2 { 2 }", Value::Integer(2));
+    eval("if 2 == 2 { 2 } else { 3 }", Value::Integer(2));
+    eval("if 2 == 4 { 2 } else { 3 }", Value::Integer(3));
+    eval("if 2 == 4 { 2 } else if 2 == 1 { 3 }", Value::Void);
+    eval("if 2 == 2 { 2 } else if 2 == 3 { 3 }", Value::Integer(2));
+    eval("if 2 == 2 { 2 } else if 2 == 3 { 3 }", Value::Integer(2));
+    eval("if 2 == 4 { 2 } else if 2 == 3 { 3 } else { 4 }", Value::Integer(4));
 }

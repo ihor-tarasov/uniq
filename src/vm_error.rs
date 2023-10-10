@@ -6,6 +6,7 @@ pub enum VMError {
     UnknownOpcode,
     BinaryOperation,
     DividingByZero,
+    UnexpectedType,
 }
 
 pub type VMRes<T = ()> = Result<T, VMError>;
