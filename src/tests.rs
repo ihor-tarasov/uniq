@@ -15,16 +15,24 @@ where
 }
 
 #[test]
-fn base_tests() {
+fn arithmetic_tests() {
     eval("2 + 2", Value::Integer(4));
     eval("2 + 2 * 2", Value::Integer(6));
     eval("2 * 0.5", Value::Real(1.0));
     eval("2 * 2 + 2 * 2", Value::Integer(8));
+}
+
+#[test]
+fn comparison_tests() {
     eval("3 + 3 == 3 * 2 + 1", Value::Boolean(false));
     eval("2 < 3", Value::Boolean(true));
     eval("3 != 1", Value::Boolean(true));
     eval("3 + 3 >= 3 + 3", Value::Boolean(true));
     eval("3 + 3 > 3 * 2 - 1", Value::Boolean(true));
+}
+
+#[test]
+fn if_tests() {
     eval("if 2 == 4 { 2 }", Value::Void);
     eval("if 2 == 2 { 2 }", Value::Integer(2));
     eval("if 2 == 2 { 2 } else { 3 }", Value::Integer(2));

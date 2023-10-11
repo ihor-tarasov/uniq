@@ -26,5 +26,3 @@ pub const JF4: u8 = 0x61;
 // 0x80..=0x9F 9 byte opcodes
 pub const INT8: u8 = 0x80;
 pub const REAL: u8 = 0x81;
-pub const JP8: u8 = 0x82;
-pub const JF8: u8 = 0x83;

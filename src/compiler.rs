@@ -9,16 +9,61 @@ pub struct SrcPos {
 
 pub struct Chunk {
     pub opcodes: Box<[u8]>,
-    pub ranges: HashMap<usize, SrcPos>,
+    pub ranges: HashMap<u32, SrcPos>,
+}
+
+pub struct Opcodes(Vec<u8>);
+
+impl Opcodes {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn push(&mut self, opcode: u8) -> CompRes<()> {
+        if self.0.len() <= u32::MAX as usize {
+            self.0.push(opcode);
+            Ok(())
+        } else {
+            Err(CompilerError::Custom(Box::new(format!("Too large opcodes count."))))
+        }
+    }
+
+    fn extend<I>(&mut self, iter: I) -> CompRes<()>
+    where
+        I: IntoIterator<Item = u8>
+    {
+        for opcode in iter {
+            self.push(opcode)?;
+        }
+        Ok(())
+    }
+
+    fn len(&self) -> u32 {
+        self.0.len() as u32
+    }
+}
+
+impl std::ops::Index<u32> for Opcodes {
+    type Output = u8;
+
+    fn index(&self, index: u32) -> &Self::Output {
+        self.0.index(index as usize)
+    }
+}
+
+impl std::ops::IndexMut<u32> for Opcodes {
+    fn index_mut(&mut self, index: u32) -> &mut Self::Output {
+        self.0.index_mut(index as usize)
+    }
 }
 
 pub struct Compiler {
     token: Token,
     range: Range<usize>,
-    opcodes: Vec<u8>,
-    ranges: HashMap<usize, SrcPos>,
+    opcodes: Opcodes,
+    ranges: HashMap<u32, SrcPos>,
     buffer: Vec<u8>,
-    address_stack: Vec<usize>,
+    address_stack: Vec<u32>,
     source_id: usize,
 }
 
@@ -41,7 +86,7 @@ impl Compiler {
         Self {
             token: Token::End,
             range: 0..0,
-            opcodes: Vec::new(),
+            opcodes: Opcodes::new(),
             ranges: HashMap::new(),
             buffer: Vec::new(),
             address_stack: Vec::new(),
@@ -72,7 +117,7 @@ impl Compiler {
         }
     }
 
-    fn set_jf(&mut self, address: usize, value: usize) {
+    fn set_jf(&mut self, address: u32, value: u32) {
         if value <= 0xFFFF {
             self.opcodes[address] = opcode::JF2;
             (value as u16)
@@ -80,27 +125,19 @@ impl Compiler {
                 .iter()
                 .cloned()
                 .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
-        } else if value <= 0xFFFFFFFF {
-            self.opcodes[address] = opcode::JF4;
-            (value as u32)
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
         } else {
-            self.opcodes[address] = opcode::JF8;
-            (value as u64)
+            self.opcodes[address] = opcode::JF4;
+            value
                 .to_be_bytes()
                 .iter()
                 .cloned()
                 .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
         }
     }
 
-    fn set_jp(&mut self, address: usize, value: usize) {
+    fn set_jp(&mut self, address: u32, value: u32) {
         if value <= 0xFFFF {
             self.opcodes[address] = opcode::JP2;
             (value as u16)
@@ -108,23 +145,15 @@ impl Compiler {
                 .iter()
                 .cloned()
                 .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
-        } else if value <= 0xFFFFFFFF {
-            self.opcodes[address] = opcode::JP4;
-            (value as u32)
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
         } else {
-            self.opcodes[address] = opcode::JP8;
-            (value as u64)
+            self.opcodes[address] = opcode::JP4;
+            value
                 .to_be_bytes()
                 .iter()
                 .cloned()
                 .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i + 1] = b);
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
         }
     }
 
@@ -134,14 +163,14 @@ impl Compiler {
     {
         let value = std::str::from_utf8(&self.buffer)?.parse::<u64>()?;
         if value <= 0xFF {
-            self.opcodes.push(opcode::INT1);
-            self.opcodes.push(value as u8);
+            self.opcodes.push(opcode::INT1)?;
+            self.opcodes.push(value as u8)?;
         } else if value <= 0xFFFF {
-            self.opcodes.push(opcode::INT2);
-            self.opcodes.extend((value as u16).to_be_bytes());
+            self.opcodes.push(opcode::INT2)?;
+            self.opcodes.extend((value as u16).to_be_bytes())?;
         } else {
-            self.opcodes.push(opcode::INT8);
-            self.opcodes.extend(value.to_be_bytes());
+            self.opcodes.push(opcode::INT8)?;
+            self.opcodes.extend(value.to_be_bytes())?;
         }
         self.lex(lexer) // Skip value.
     }
@@ -151,8 +180,8 @@ impl Compiler {
         R: std::io::Read,
     {
         let value = std::str::from_utf8(&self.buffer)?.parse::<f64>()?;
-        self.opcodes.push(opcode::REAL);
-        self.opcodes.extend(value.to_be_bytes());
+        self.opcodes.push(opcode::REAL)?;
+        self.opcodes.extend(value.to_be_bytes())?;
         self.lex(lexer) // Skip value.
     }
 
@@ -161,7 +190,7 @@ impl Compiler {
         R: std::io::Read,
     {
         self.opcodes
-            .push(if value { opcode::TRUE } else { opcode::FALSE });
+            .push(if value { opcode::TRUE } else { opcode::FALSE })?;
         self.lex(lexer) // Skip value.
     }
 
@@ -191,7 +220,7 @@ impl Compiler {
             if first_time {
                 first_time = false;
             } else {
-                self.opcodes.push(opcode::DROP);
+                self.opcodes.push(opcode::DROP)?;
             }
             self.statement(lexer)?;
 
@@ -218,14 +247,14 @@ impl Compiler {
     where
         R: std::io::Read,
     {
-        let mut address_stack_size = 0;
+        let mut address_stack_size: u32 = 0;
         loop {
             self.lex(lexer)?; // Skip 'if'.
             self.expression(lexer)?; // Condition.
             
             // JF to the next block.
             let next_jf_address = self.opcodes.len();
-            self.opcodes.extend([0; 9]);
+            self.opcodes.extend([0; 5])?;
 
             self.expect(Token::LeftBrace)?;
 
@@ -237,22 +266,22 @@ impl Compiler {
                 if self.token == Token::LeftBrace {
                     self.address_stack.push(self.opcodes.len());
                     address_stack_size += 1;
-                    self.opcodes.extend([0; 9]);
+                    self.opcodes.extend([0; 5])?;
                     self.set_jf(next_jf_address, self.opcodes.len());
                     self.block(lexer)?;
                     break;
                 } else if self.token == Token::If {
                     self.address_stack.push(self.opcodes.len());
                     address_stack_size += 1;
-                    self.opcodes.extend([0; 9]);
+                    self.opcodes.extend([0; 5])?;
                     self.set_jf(next_jf_address, self.opcodes.len());
                 }
             } else {
                 self.address_stack.push(self.opcodes.len());
                 address_stack_size += 1;
-                self.opcodes.extend([0; 9]);
+                self.opcodes.extend([0; 5])?;
                 self.set_jf(next_jf_address, self.opcodes.len());
-                self.opcodes.push(opcode::VOID);
+                self.opcodes.push(opcode::VOID)?;
                 break;
             }
         }
@@ -327,7 +356,7 @@ impl Compiler {
                 },
             );
 
-            self.opcodes.push(opcode);
+            self.opcodes.push(opcode)?;
         }
     }
 
@@ -348,13 +377,13 @@ impl Compiler {
         self.lex(&mut lexer)?;
         self.expression(&mut lexer)?;
         self.expect(Token::End)?;
-        self.opcodes.push(opcode::RET);
+        self.opcodes.push(opcode::RET)?;
         Ok(())
     }
 
     pub fn into_chunk(self) -> Chunk {
         Chunk {
-            opcodes: self.opcodes.into_boxed_slice(),
+            opcodes: self.opcodes.0.into_boxed_slice(),
             ranges: self.ranges,
         }
     }

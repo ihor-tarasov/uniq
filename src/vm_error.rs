@@ -7,6 +7,7 @@ pub enum VMError {
     BinaryOperation,
     DividingByZero,
     UnexpectedType,
+    AddressOverflow,
 }
 
 pub type VMRes<T = ()> = Result<T, VMError>;

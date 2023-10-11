@@ -17,84 +17,96 @@ macro_rules! dumpln {
     }};
 }
 
-fn fetch_u8(opcodes: &[u8], offset: usize) -> VMRes<u8> {
-    match opcodes.get(offset) {
+fn checked_add(a: u32, b: u32) -> VMRes<u32> {
+    a.checked_add(b).ok_or(VMError::AddressOverflow)
+}
+
+fn checked_as(a: usize) -> VMRes<u32> {
+    if a <= u32::MAX as usize {
+        Ok(a as u32)
+    } else {
+        Err(VMError::AddressOverflow)
+    }
+}
+
+fn fetch_u8(opcodes: &[u8], offset: u32) -> VMRes<u8> {
+    match opcodes.get(offset as usize) {
         Some(data) => Ok(*data),
         None => Err(VMError::OpcodeFetch),
     }
 }
 
-fn fetch_u16(opcodes: &[u8], offset: usize) -> VMRes<u16> {
+fn fetch_u16(opcodes: &[u8], offset: u32) -> VMRes<u16> {
     Ok(u16::from_be_bytes([
-        fetch_u8(opcodes, offset + 0)?,
-        fetch_u8(opcodes, offset + 1)?,
+        fetch_u8(opcodes, offset)?,
+        fetch_u8(opcodes, checked_add(offset, 1)?)?,
     ]))
 }
 
-fn fetch_u32(opcodes: &[u8], offset: usize) -> VMRes<u32> {
+fn fetch_u32(opcodes: &[u8], offset: u32) -> VMRes<u32> {
     Ok(u32::from_be_bytes([
-        fetch_u8(opcodes, offset + 0)?,
-        fetch_u8(opcodes, offset + 1)?,
-        fetch_u8(opcodes, offset + 2)?,
-        fetch_u8(opcodes, offset + 3)?,
+        fetch_u8(opcodes, offset)?,
+        fetch_u8(opcodes, checked_add(offset, 1)?)?,
+        fetch_u8(opcodes, checked_add(offset, 2)?)?,
+        fetch_u8(opcodes, checked_add(offset, 3)?)?,
     ]))
 }
 
-fn fetch_u64(opcodes: &[u8], offset: usize) -> VMRes<u64> {
+fn fetch_u64(opcodes: &[u8], offset: u32) -> VMRes<u64> {
     Ok(u64::from_be_bytes([
-        fetch_u8(opcodes, offset + 0)?,
-        fetch_u8(opcodes, offset + 1)?,
-        fetch_u8(opcodes, offset + 2)?,
-        fetch_u8(opcodes, offset + 3)?,
-        fetch_u8(opcodes, offset + 4)?,
-        fetch_u8(opcodes, offset + 5)?,
-        fetch_u8(opcodes, offset + 6)?,
-        fetch_u8(opcodes, offset + 7)?,
+        fetch_u8(opcodes, offset)?,
+        fetch_u8(opcodes, checked_add(offset, 1)?)?,
+        fetch_u8(opcodes, checked_add(offset, 2)?)?,
+        fetch_u8(opcodes, checked_add(offset, 3)?)?,
+        fetch_u8(opcodes, checked_add(offset, 4)?)?,
+        fetch_u8(opcodes, checked_add(offset, 5)?)?,
+        fetch_u8(opcodes, checked_add(offset, 6)?)?,
+        fetch_u8(opcodes, checked_add(offset, 7)?)?,
     ]))
 }
 
-fn fetch_f64(opcodes: &[u8], offset: usize) -> VMRes<f64> {
+fn fetch_f64(opcodes: &[u8], offset: u32) -> VMRes<f64> {
     Ok(f64::from_be_bytes([
-        fetch_u8(opcodes, offset + 0)?,
-        fetch_u8(opcodes, offset + 1)?,
-        fetch_u8(opcodes, offset + 2)?,
-        fetch_u8(opcodes, offset + 3)?,
-        fetch_u8(opcodes, offset + 4)?,
-        fetch_u8(opcodes, offset + 5)?,
-        fetch_u8(opcodes, offset + 6)?,
-        fetch_u8(opcodes, offset + 7)?,
+        fetch_u8(opcodes, offset)?,
+        fetch_u8(opcodes, checked_add(offset, 1)?)?,
+        fetch_u8(opcodes, checked_add(offset, 2)?)?,
+        fetch_u8(opcodes, checked_add(offset, 3)?)?,
+        fetch_u8(opcodes, checked_add(offset, 4)?)?,
+        fetch_u8(opcodes, checked_add(offset, 5)?)?,
+        fetch_u8(opcodes, checked_add(offset, 6)?)?,
+        fetch_u8(opcodes, checked_add(offset, 7)?)?,
     ]))
 }
 
 fn dump_opcodes(opcodes: &[u8]) -> VMRes {
     let mut i = 0;
-    while i < opcodes.len() {
+    while i < checked_as(opcodes.len())? {
         print!("{i}|");
         let opcode = fetch_u8(opcodes, i)?;
-        i += 1;
+        i = checked_add(i, 1)?;
         match opcode {
             opcode::RET => println!("RET"),
             opcode::INT1 => {
                 let value = fetch_u8(opcodes, i)?;
                 println!("INT {value}");
-                i += 1;
+                i = checked_add(i, 1)?;
             },
             opcode::INT2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("INT {value}");
-                i += 2;
+                i = checked_add(i, 2)?;
             },
             opcode::INT8 => {
                 let value = fetch_u64(opcodes, i)?;
                 println!("INT {value}");
-                i += 8;
+                i = checked_add(i, 8)?;
             },
             opcode::TRUE => println!("TRUE"),
             opcode::FALSE => println!("FALSE"),
             opcode::REAL => {
                 let value = fetch_f64(opcodes, i)?;
                 println!("REAL {value}");
-                i += 8;
+                i = checked_add(i, 8)?;
             },
             opcode::ADD => println!("ADD"),
             opcode::SUB => println!("SUB"),
@@ -109,32 +121,22 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
             opcode::JP2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JP {value}");
-                i += 8;
+                i = checked_add(i, 4)?;
             },
             opcode::JP4 => {
                 let value = fetch_u32(opcodes, i)?;
                 println!("JP {value}");
-                i += 8;
-            },
-            opcode::JP8 => {
-                let value = fetch_u64(opcodes, i)?;
-                println!("JP {value}");
-                i += 8;
+                i = checked_add(i, 4)?;
             },
             opcode::JF2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JF {value}");
-                i += 8;
+                i = checked_add(i, 4)?;
             },
             opcode::JF4 => {
                 let value = fetch_u32(opcodes, i)?;
                 println!("JF {value}");
-                i += 8;
-            },
-            opcode::JF8 => {
-                let value = fetch_u64(opcodes, i)?;
-                println!("JF {value}");
-                i += 8;
+                i = checked_add(i, 4)?;
             },
             opcode::DROP => println!("DROP"),
             opcode::VOID => println!("VOID"),
@@ -146,13 +148,14 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
 
 pub struct State<'a> {
     stack: &'a mut [Value],
-    stack_pointer: usize,
-    program_counter: usize,
+    stack_pointer: u32,
+    program_counter: u32,
     message: Option<String>,
 }
 
 impl<'a> State<'a> {
     pub fn new(stack: &'a mut [Value]) -> Self {
+        assert!(stack.len() <= u32::MAX as usize, "Maximum stack length must be u32::MAX.");
         Self {
             stack,
             stack_pointer: 0,
@@ -162,8 +165,8 @@ impl<'a> State<'a> {
     }
 
     pub fn push(&mut self, value: Value) -> VMRes {
-        if self.stack_pointer < self.stack.len() {
-            self.stack[self.stack_pointer] = value;
+        if self.stack_pointer < self.stack.len() as u32 {
+            self.stack[self.stack_pointer as usize] = value;
             self.stack_pointer += 1;
             Ok(())
         } else {
@@ -172,19 +175,19 @@ impl<'a> State<'a> {
     }
 
     pub fn pop(&mut self) -> VMRes<Value> {
-        if self.stack_pointer > self.stack.len() {
+        if self.stack_pointer >= self.stack.len() as u32 {
             Err(VMError::StackOverflow)
         } else if self.stack_pointer == 0 {
             Err(VMError::StackUnderflow)
         } else {
             self.stack_pointer -= 1;
-            Ok(self.stack[self.stack_pointer].clone())
+            Ok(self.stack[self.stack_pointer as usize].clone())
         }
     }
 
     fn dump_stack(&self) {
         for i in 0..self.stack_pointer {
-            print!("[{}]", self.stack[i]);
+            print!("[{}]", self.stack[i as usize]);
         }
         println!();
     }
@@ -348,61 +351,55 @@ impl<'a> State<'a> {
         let l = self.pop()?;
         let res = f(self, l, r)?;
         self.push(res)?;
-        self.program_counter += 1;
+        self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
     fn int1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        let value = fetch_u8(opcodes, self.program_counter + 1)?;
+        let value = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
-        self.program_counter += 2;
+        self.program_counter = checked_add(self.program_counter, 2)?;
         Ok(true)
     }
 
     fn int2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        let value = fetch_u16(opcodes, self.program_counter + 1)?;
+        let value = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
-        self.program_counter += 3;
+        self.program_counter = checked_add(self.program_counter, 3)?;
         Ok(true)
     }
 
     fn int8(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        let value = fetch_u64(opcodes, self.program_counter + 1)?;
+        let value = fetch_u64(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
-        self.program_counter += 9;
+        self.program_counter = checked_add(self.program_counter, 9)?;
         Ok(true)
     }
 
     fn jp2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        self.program_counter = fetch_u16(opcodes, self.program_counter + 1)? as usize;
+        self.program_counter = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)? as u32;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
 
     fn jp4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        self.program_counter = fetch_u32(opcodes, self.program_counter + 1)? as usize;
-        dumpln!("JP {}", self.program_counter);
-        Ok(true)
-    }
-
-    fn jp8(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        self.program_counter = fetch_u64(opcodes, self.program_counter + 1)? as usize;
+        self.program_counter = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
 
     fn jf2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        dumpln!("JF {}", fetch_u16(opcodes, self.program_counter + 1)?);
+        dumpln!("JF {}", fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?);
         let value = self.pop()?;
         match value {
             Value::Boolean(value) => {
                 if value {
-                    self.program_counter += 9;
+                    self.program_counter = checked_add(self.program_counter, 5)?;
                 } else {
-                    self.program_counter = fetch_u16(opcodes, self.program_counter + 1)? as usize;
+                    self.program_counter = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)? as u32;
                 }
                 Ok(true)
             }
@@ -414,33 +411,14 @@ impl<'a> State<'a> {
     }
 
     fn jf4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        dumpln!("JF {}", fetch_u32(opcodes, self.program_counter + 1)?);
+        dumpln!("JF {}", fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?);
         let value = self.pop()?;
         match value {
             Value::Boolean(value) => {
                 if value {
-                    self.program_counter += 9;
+                    self.program_counter = checked_add(self.program_counter, 5)?;
                 } else {
-                    self.program_counter = fetch_u32(opcodes, self.program_counter + 1)? as usize;
-                }
-                Ok(true)
-            }
-            _ => {
-                self.message = Some(format!("Expected bool value, found {value}"));
-                Err(VMError::UnexpectedType)
-            }
-        }
-    }
-
-    fn jf8(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        dumpln!("JF {}", fetch_u64(opcodes, self.program_counter + 1)?);
-        let value = self.pop()?;
-        match value {
-            Value::Boolean(value) => {
-                if value {
-                    self.program_counter += 9;
-                } else {
-                    self.program_counter = fetch_u64(opcodes, self.program_counter + 1)? as usize;
+                    self.program_counter = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
                 }
                 Ok(true)
             }
@@ -452,10 +430,10 @@ impl<'a> State<'a> {
     }
 
     fn real(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        let value = fetch_f64(opcodes, self.program_counter + 1)?;
+        let value = fetch_f64(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("REAL {value}");
         self.push(Value::Real(value))?;
-        self.program_counter += 9;
+        self.program_counter = checked_add(self.program_counter, 9)?;
         Ok(true)
     }
 
@@ -466,21 +444,21 @@ impl<'a> State<'a> {
             dumpln!("FALSE");
         }
         self.push(Value::Boolean(value))?;
-        self.program_counter += 1;
+        self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
     fn drop(&mut self) -> VMRes<bool> {
         dumpln!("DROP");
         self.pop()?;
-        self.program_counter += 1;
+        self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
     fn void(&mut self) -> VMRes<bool> {
         dumpln!("VOID");
         self.push(Value::Void)?;
-        self.program_counter += 1;
+        self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
@@ -506,10 +484,8 @@ impl<'a> State<'a> {
             opcode::GE => self.bin(Self::ge),
             opcode::JP2 => self.jp2(opcodes),
             opcode::JP4 => self.jp4(opcodes),
-            opcode::JP8 => self.jp8(opcodes),
             opcode::JF2 => self.jf2(opcodes),
             opcode::JF4 => self.jf4(opcodes),
-            opcode::JF8 => self.jf8(opcodes),
             opcode::DROP => self.drop(),
             opcode::VOID => self.void(),
             _ => Err(VMError::UnknownOpcode),
@@ -536,7 +512,7 @@ impl<'a> State<'a> {
         self.message.as_ref().map(|s| s.as_str())
     }
 
-    pub fn program_counter(&self) -> usize {
+    pub fn program_counter(&self) -> u32 {
         self.program_counter
     }
 }
