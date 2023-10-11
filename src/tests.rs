@@ -1,4 +1,6 @@
-use crate::{Value, SliceRead, utils};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{utils, Object, SliceRead, Value};
 
 fn eval<'a, T>(code: T, expected: Value)
 where
@@ -40,5 +42,36 @@ fn if_tests() {
     eval("if 2 == 4 { 2 } else if 2 == 1 { 3 }", Value::Void);
     eval("if 2 == 2 { 2 } else if 2 == 3 { 3 }", Value::Integer(2));
     eval("if 2 == 2 { 2 } else if 2 == 3 { 3 }", Value::Integer(2));
-    eval("if 2 == 4 { 2 } else if 2 == 3 { 3 } else { 4 }", Value::Integer(4));
+    eval(
+        "if 2 == 4 { 2 } else if 2 == 3 { 3 } else { 4 }",
+        Value::Integer(4),
+    );
+}
+
+#[test]
+fn list_tests() {
+    eval(
+        "[]",
+        Value::Object(Rc::new(RefCell::new(Object::List(Vec::new())))),
+    );
+    eval(
+        "[2]",
+        Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2)])))),
+    );
+    eval(
+        "[2 3]",
+        Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2), Value::Integer(3)])))),
+    );
+    eval(
+        "[2, 3]",
+        Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2), Value::Integer(3)])))),
+    );
+    eval(
+        "[2, 3,]",
+        Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2), Value::Integer(3)])))),
+    );
+    eval(
+        "[2, 3] + 4",
+        Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2), Value::Integer(3), Value::Integer(4)])))),
+    );
 }

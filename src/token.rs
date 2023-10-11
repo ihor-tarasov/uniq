@@ -7,10 +7,16 @@ pub enum Token {
     False, // 'false'
     If, // 'if'
     Else, // 'else'
+    Let, // 'let'
+    While, // 'while'
+    VerticalBar, // '|'
+    Comma, // ','
     LeftParen, // '('
     RightParen, // ')'
     LeftBrace, // '{'
     RightBrace, // '}'
+    LeftBracket, // '['
+    RightBracket, // ']'
     Semicolon, // ';'
     Plus, // '+'
     Minus, // '-'
@@ -38,6 +44,12 @@ impl std::fmt::Display for Token {
             Token::False => write!(f, "'false'"),
             Token::If => write!(f, "'if'"),
             Token::Else => write!(f, "'else'"),
+            Token::Let => write!(f, "'let'"),
+            Token::While => write!(f, "'while'"),
+            Token::LeftBracket => write!(f, "'['"),
+            Token::RightBracket => write!(f, "']'"),
+            Token::VerticalBar => write!(f, "'|'"),
+            Token::Comma => write!(f, "','"),
             Token::LeftParen => write!(f, "'('"),
             Token::RightParen => write!(f, "')'"),
             Token::LeftBrace => write!(f, "'{{'"),

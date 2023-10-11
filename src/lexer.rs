@@ -130,6 +130,8 @@ where
             b"false" => Token::False,
             b"if" => Token::If,
             b"else" => Token::Else,
+            b"let" => Token::Let,
+            b"while" => Token::While,
             _ => Token::Identifier,
         })
     }
@@ -145,6 +147,10 @@ where
                 b')' => self.single(Token::RightParen),
                 b'{' => self.single(Token::LeftBrace),
                 b'}' => self.single(Token::RightBrace),
+                b'[' => self.single(Token::LeftBracket),
+                b']' => self.single(Token::RightBracket),
+                b',' => self.single(Token::Comma),
+                b'|' => self.single(Token::VerticalBar),
                 b';' => self.single(Token::Semicolon),
                 b'!' => self.double_exclamation(),
                 b'=' => self.double_equal(),

@@ -1,8 +1,10 @@
-use crate::{opcode, VMError, VMRes, Value};
+use std::{cell::RefCell, rc::Rc};
 
-const DUMP_STACK: bool = false;
-const DUMP_OPCODE: bool = false;
-const DUMP_OPCODES: bool = false;
+use crate::{opcode, Object, VMError, VMRes, Value};
+
+const DUMP_STACK: bool = true;
+const DUMP_OPCODE: bool = true;
+const DUMP_OPCODES: bool = true;
 
 macro_rules! dumpln {
     () => {
@@ -79,7 +81,8 @@ fn fetch_f64(opcodes: &[u8], offset: u32) -> VMRes<f64> {
 }
 
 fn dump_opcodes(opcodes: &[u8]) -> VMRes {
-    let mut i = 0;
+    println!("# Stack size: {}", fetch_u32(opcodes, 0)?);
+    let mut i = 4;
     while i < checked_as(opcodes.len())? {
         print!("{i}|");
         let opcode = fetch_u8(opcodes, i)?;
@@ -90,24 +93,24 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
                 let value = fetch_u8(opcodes, i)?;
                 println!("INT {value}");
                 i = checked_add(i, 1)?;
-            },
+            }
             opcode::INT2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("INT {value}");
                 i = checked_add(i, 2)?;
-            },
+            }
             opcode::INT8 => {
                 let value = fetch_u64(opcodes, i)?;
                 println!("INT {value}");
                 i = checked_add(i, 8)?;
-            },
+            }
             opcode::TRUE => println!("TRUE"),
             opcode::FALSE => println!("FALSE"),
             opcode::REAL => {
                 let value = fetch_f64(opcodes, i)?;
                 println!("REAL {value}");
                 i = checked_add(i, 8)?;
-            },
+            }
             opcode::ADD => println!("ADD"),
             opcode::SUB => println!("SUB"),
             opcode::MUL => println!("MUL"),
@@ -122,24 +125,25 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JP {value}");
                 i = checked_add(i, 4)?;
-            },
+            }
             opcode::JP4 => {
                 let value = fetch_u32(opcodes, i)?;
                 println!("JP {value}");
                 i = checked_add(i, 4)?;
-            },
+            }
             opcode::JF2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JF {value}");
                 i = checked_add(i, 4)?;
-            },
+            }
             opcode::JF4 => {
                 let value = fetch_u32(opcodes, i)?;
                 println!("JF {value}");
                 i = checked_add(i, 4)?;
-            },
+            }
             opcode::DROP => println!("DROP"),
             opcode::VOID => println!("VOID"),
+            opcode::LIST => println!("LIST"),
             _ => return Err(VMError::UnknownOpcode),
         }
     }
@@ -155,7 +159,10 @@ pub struct State<'a> {
 
 impl<'a> State<'a> {
     pub fn new(stack: &'a mut [Value]) -> Self {
-        assert!(stack.len() <= u32::MAX as usize, "Maximum stack length must be u32::MAX.");
+        assert!(
+            stack.len() <= u32::MAX as usize,
+            "Maximum stack length must be u32::MAX."
+        );
         Self {
             stack,
             stack_pointer: 0,
@@ -204,6 +211,13 @@ impl<'a> State<'a> {
             (Value::Integer(l), Value::Real(r)) => Ok(Value::Real((l as f64) + r)),
             (Value::Real(l), Value::Integer(r)) => Ok(Value::Real(l + (r as f64))),
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l + r)),
+            (Value::Object(object), value) => {
+                {
+                    let mut object = object.borrow_mut();
+                    object.push(value);
+                }
+                Ok(Value::Object(object))
+            }
             _ => {
                 self.message = Some(format!("Unable to addict {l} and {r} values."));
                 Err(VMError::BinaryOperation)
@@ -392,14 +406,18 @@ impl<'a> State<'a> {
     }
 
     fn jf2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        dumpln!("JF {}", fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?);
+        dumpln!(
+            "JF {}",
+            fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?
+        );
         let value = self.pop()?;
         match value {
             Value::Boolean(value) => {
                 if value {
                     self.program_counter = checked_add(self.program_counter, 5)?;
                 } else {
-                    self.program_counter = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)? as u32;
+                    self.program_counter =
+                        fetch_u16(opcodes, checked_add(self.program_counter, 1)?)? as u32;
                 }
                 Ok(true)
             }
@@ -411,14 +429,18 @@ impl<'a> State<'a> {
     }
 
     fn jf4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
-        dumpln!("JF {}", fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?);
+        dumpln!(
+            "JF {}",
+            fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?
+        );
         let value = self.pop()?;
         match value {
             Value::Boolean(value) => {
                 if value {
                     self.program_counter = checked_add(self.program_counter, 5)?;
                 } else {
-                    self.program_counter = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
+                    self.program_counter =
+                        fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
                 }
                 Ok(true)
             }
@@ -462,6 +484,15 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn list(&mut self) -> VMRes<bool> {
+        dumpln!("LIST");
+        self.push(Value::Object(Rc::new(RefCell::new(Object::List(
+            Vec::new(),
+        )))))?;
+        self.program_counter = checked_add(self.program_counter, 1)?;
+        Ok(true)
+    }
+
     pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
@@ -488,6 +519,7 @@ impl<'a> State<'a> {
             opcode::JF4 => self.jf4(opcodes),
             opcode::DROP => self.drop(),
             opcode::VOID => self.void(),
+            opcode::LIST => self.list(),
             _ => Err(VMError::UnknownOpcode),
         }
     }
@@ -500,6 +532,11 @@ impl<'a> State<'a> {
         if DUMP_OPCODE {
             println!("# RUNTIME DUMP");
         }
+
+        let stack_size = fetch_u32(opcodes, 0)?;
+        self.stack_pointer = stack_size;
+        self.program_counter = checked_add(self.program_counter, 4)?;
+
         while self.step(opcodes)? {
             if DUMP_STACK {
                 self.dump_stack();
