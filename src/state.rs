@@ -144,6 +144,33 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
             opcode::DROP => println!("DROP"),
             opcode::VOID => println!("VOID"),
             opcode::LIST => println!("LIST"),
+            opcode::CALL => {
+                let value = fetch_u8(opcodes, i)?;
+                println!("CALL {value}");
+                i = checked_add(i, 1)?;
+            }
+            opcode::GET => println!("GET"),
+            opcode::SET => println!("SET"),
+            opcode::LD1 => {
+                let value = fetch_u8(opcodes, i)?;
+                println!("LD {value}");
+                i = checked_add(i, 1)?;
+            }
+            opcode::LD2 => {
+                let value = fetch_u16(opcodes, i)?;
+                println!("LD {value}");
+                i = checked_add(i, 2)?;
+            }
+            opcode::ST1 => {
+                let value = fetch_u8(opcodes, i)?;
+                println!("ST {value}");
+                i = checked_add(i, 1)?;
+            }
+            opcode::ST2 => {
+                let value = fetch_u16(opcodes, i)?;
+                println!("ST {value}");
+                i = checked_add(i, 2)?;
+            }
             _ => return Err(VMError::UnknownOpcode),
         }
     }
@@ -154,6 +181,7 @@ pub struct State<'a> {
     stack: &'a mut [Value],
     stack_pointer: u32,
     program_counter: u32,
+    locals: u32,
     message: Option<String>,
 }
 
@@ -167,6 +195,7 @@ impl<'a> State<'a> {
             stack,
             stack_pointer: 0,
             program_counter: 0,
+            locals: 0,
             message: None,
         }
     }
@@ -189,6 +218,16 @@ impl<'a> State<'a> {
         } else {
             self.stack_pointer -= 1;
             Ok(self.stack[self.stack_pointer as usize].clone())
+        }
+    }
+
+    fn peek(&mut self) -> VMRes<Value> {
+        if self.stack_pointer >= self.stack.len() as u32 {
+            Err(VMError::StackOverflow)
+        } else if self.stack_pointer == 0 {
+            Err(VMError::StackUnderflow)
+        } else {
+            Ok(self.stack[(self.stack_pointer - 1) as usize].clone())
         }
     }
 
@@ -493,6 +532,72 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn ld1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("LD {index}");
+        if self.locals + index as u32 >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.push(self.stack[(self.locals + index as u32) as usize].clone())?;
+        self.program_counter = checked_add(self.program_counter, 2)?;
+        Ok(true)
+    }
+
+    fn ld2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("LD {index}");
+        if self.locals + index as u32 >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.push(self.stack[(self.locals + index as u32) as usize].clone())?;
+        self.program_counter = checked_add(self.program_counter, 3)?;
+        Ok(true)
+    }
+
+    fn ld4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("LD {index}");
+        if self.locals + index >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.push(self.stack[(self.locals + index) as usize].clone())?;
+        self.program_counter = checked_add(self.program_counter, 5)?;
+        Ok(true)
+    }
+
+    fn st1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("ST {index}");
+        if self.locals + index as u32 >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.stack[(self.locals + index as u32) as usize] = self.peek()?;
+        self.program_counter = checked_add(self.program_counter, 2)?;
+        Ok(true)
+    }
+
+    fn st2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("ST {index}");
+        if self.locals + index as u32 >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.stack[(self.locals + index as u32) as usize] = self.peek()?;
+        self.program_counter = checked_add(self.program_counter, 3)?;
+        Ok(true)
+    }
+
+    fn st4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("ST {index}");
+        if self.locals + index >= self.stack.len() as u32 {
+            return Err(VMError::StackOverflow);
+        }
+        self.stack[(self.locals + index) as usize] = self.peek()?;
+        self.program_counter = checked_add(self.program_counter, 5)?;
+        Ok(true)
+    }
+
     pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
@@ -520,6 +625,12 @@ impl<'a> State<'a> {
             opcode::DROP => self.drop(),
             opcode::VOID => self.void(),
             opcode::LIST => self.list(),
+            opcode::LD1 => self.ld1(opcodes),
+            opcode::LD2 => self.ld2(opcodes),
+            opcode::LD4 => self.ld4(opcodes),
+            opcode::ST1 => self.st1(opcodes),
+            opcode::ST2 => self.st2(opcodes),
+            opcode::ST4 => self.st4(opcodes),
             _ => Err(VMError::UnknownOpcode),
         }
     }
