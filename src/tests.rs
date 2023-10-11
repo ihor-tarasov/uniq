@@ -75,3 +75,8 @@ fn list_tests() {
         Value::Object(Rc::new(RefCell::new(Object::List(vec![Value::Integer(2), Value::Integer(3), Value::Integer(4)])))),
     );
 }
+
+#[test]
+fn indexing_tests() {
+    eval("let a = [1, 2, 3]; a[1]", Value::Integer(2));
+}
