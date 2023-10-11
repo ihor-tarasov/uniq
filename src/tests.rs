@@ -79,4 +79,21 @@ fn list_tests() {
 #[test]
 fn indexing_tests() {
     eval("let a = [1, 2, 3]; a[1]", Value::Integer(2));
+    eval("let a = [1, 2, 3]; a[0] = 10; a[0]", Value::Integer(10));
+}
+
+#[test]
+fn function_tests() {
+    eval("let a = |b| { b + 1 }; a(4)", Value::Integer(5));
+    eval("let power = |n| { n * n }; power(power(10))", Value::Integer(10_000));
+    eval("let factorial = |n| {
+                      let fact = 1;
+                      let i = 2;
+                      while i <= n {
+                              fact = fact * i;
+                              i = i + 1;
+                      }
+                      fact
+              };
+              factorial(6)", Value::Integer(720));
 }

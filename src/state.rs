@@ -2,9 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{opcode, Object, VMError, VMRes, Value};
 
-const DUMP_STACK: bool = true;
-const DUMP_OPCODE: bool = true;
-const DUMP_OPCODES: bool = true;
+const DUMP_STACK: bool = false;
+const DUMP_OPCODE: bool = false;
+const DUMP_OPCODES: bool = false;
 
 macro_rules! dumpln {
     () => {
@@ -171,6 +171,11 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
                 println!("ST {value}");
                 i = checked_add(i, 2)?;
             }
+            opcode::PTR => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("PTR {value}");
+                i = checked_add(i, 4)?;
+            }
             _ => return Err(VMError::UnknownOpcode),
         }
     }
@@ -240,7 +245,21 @@ impl<'a> State<'a> {
 
     fn ret(&mut self) -> VMRes<bool> {
         dumpln!("RET");
-        Ok(false)
+        if self.locals == 0 {
+            return Ok(false);
+        }
+        let result = self.pop()?;
+        self.stack_pointer = self.locals - 1;
+        let call_state = self.stack[self.stack_pointer as usize].clone();
+        match call_state {
+            Value::CallState(new_pc, new_locals) => {
+                self.push(result)?;
+                self.program_counter = new_pc;
+                self.locals = new_locals;
+            }
+            _ => return self.error(format!("Expected CallState, found {call_state}")),
+        }
+        Ok(true)
     }
 
     fn add(&mut self, l: Value, r: Value) -> VMRes<Value> {
@@ -683,6 +702,42 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn call(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let params_count = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("CALL {params_count}");
+        if self.stack_pointer < params_count as u32 + 1 {
+            return Err(VMError::StackUnderflow);
+        }
+        let in_stack_offset = self.stack_pointer - params_count as u32 - 1;
+        let address = self.stack[in_stack_offset as usize].clone();
+        self.stack[in_stack_offset as usize] =
+            Value::CallState(checked_add(self.program_counter, 2)?, self.locals);
+        match address {
+            Value::Pointer(address) => self.program_counter = address,
+            _ => return self.error(format!("Expected address, found {address}")),
+        }
+        self.locals = self.stack_pointer - params_count as u32;
+        let params_count_for_check = fetch_u8(opcodes, self.program_counter)?;
+        if params_count != params_count_for_check {
+            return self.error(format!(
+                "Expected {params_count_for_check} function call arguments, found {params_count}."
+            ));
+        }
+        let stack_size = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
+        self.stack_pointer = checked_add(self.stack_pointer, stack_size)?;
+        dumpln!("Call info: parameters count: {params_count}, stack_size: {stack_size}");
+        self.program_counter = checked_add(self.program_counter, 5)?;
+        Ok(true)
+    }
+
+    fn ptr(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+        let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
+        dumpln!("PTR {index}");
+        self.push(Value::Pointer(index))?;
+        self.program_counter = checked_add(self.program_counter, 5)?;
+        Ok(true)
+    }
+
     pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
@@ -718,6 +773,8 @@ impl<'a> State<'a> {
             opcode::ST4 => self.st4(opcodes),
             opcode::SET => self.set(),
             opcode::GET => self.get(),
+            opcode::CALL => self.call(opcodes),
+            opcode::PTR => self.ptr(opcodes),
             _ => Err(VMError::UnknownOpcode),
         }
     }

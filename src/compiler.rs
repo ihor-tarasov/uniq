@@ -382,11 +382,13 @@ impl Compiler {
         self.functions.last().unwrap().get(name)
     }
 
-    fn call<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn call<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> CompRes
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '('.
+
+        self.load(index)?;
 
         let mut arguments = 0;
         loop {
@@ -474,7 +476,7 @@ impl Compiler {
             match self.token {
                 Token::Equal => self.assign(lexer, index),
                 Token::LeftBracket => self.index(lexer, index),
-                Token::LeftParen => self.call(lexer),
+                Token::LeftParen => self.call(lexer, index),
                 _ => self.load(index),
             }
         } else {
@@ -535,6 +537,7 @@ impl Compiler {
         self.opcodes.extend([0; 5])?;
         self.opcodes.push(opcode::DROP)?;
         // Block.
+        self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
         self.jump(while_start)?;
         self.set_jf(end_jf_address, self.opcodes.len());
@@ -563,6 +566,8 @@ impl Compiler {
     where
         R: std::io::Read,
     {
+        self.lex(lexer)?; // Skip '|'.
+
         let end_jp_address = self.opcodes.len();
         self.opcodes.extend([0; 5])?;
 
@@ -585,11 +590,15 @@ impl Compiler {
         }
 
         self.expect(Token::VerticalBar)?;
+        self.lex(lexer)?; // Skip '|'.
+
+        let function_address = self.opcodes.len();
 
         self.opcodes.push(args_count as u8)?;
         let stack_size_address = self.opcodes.len();
         self.opcodes.extend([0; 4])?;
 
+        self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
 
         self.opcodes.push(opcode::RET)?;
@@ -604,6 +613,10 @@ impl Compiler {
             .for_each(|(i, b)| self.opcodes[stack_size_address + i as u32] = b);
 
         self.set_jp(end_jp_address, self.opcodes.len());
+
+        self.opcodes.push(opcode::PTR)?;
+        self.opcodes.extend(function_address.to_be_bytes())?;
+
         Ok(())
     }
 
