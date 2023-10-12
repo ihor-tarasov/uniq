@@ -4,13 +4,15 @@ mod error;
 mod function;
 mod opcodes;
 mod pos;
+mod lexer;
+mod token;
 
 pub use chunk::*;
 pub use error::*;
 pub use pos::*;
 
-use self::{function::Function, opcodes::Opcodes};
-use crate::{lexer::Lexer, opcode, raise, Token};
+use self::{function::Function, opcodes::Opcodes, lexer::Lexer, token::Token};
+use crate::{opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
 pub struct Compiler {

@@ -1,4 +1,4 @@
-use crate::Token;
+use super::token::Token;
 
 fn read_byte<R>(read: &mut R) -> std::io::Result<Option<u8>>
 where
