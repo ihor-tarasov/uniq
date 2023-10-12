@@ -1,6 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{opcode, Object, VMError, VMRes, Value};
+use crate::{opcode, vm::Object};
+
+use super::{Res, Error, Value};
 
 const DUMP_STACK: bool = false;
 const DUMP_OPCODE: bool = false;
@@ -19,33 +21,33 @@ macro_rules! dumpln {
     }};
 }
 
-fn checked_add(a: u32, b: u32) -> VMRes<u32> {
-    a.checked_add(b).ok_or(VMError::AddressOverflow)
+fn checked_add(a: u32, b: u32) -> Res<u32> {
+    a.checked_add(b).ok_or(Error::AddressOverflow)
 }
 
-fn checked_as(a: usize) -> VMRes<u32> {
+fn checked_as(a: usize) -> Res<u32> {
     if a <= u32::MAX as usize {
         Ok(a as u32)
     } else {
-        Err(VMError::AddressOverflow)
+        Err(Error::AddressOverflow)
     }
 }
 
-fn fetch_u8(opcodes: &[u8], offset: u32) -> VMRes<u8> {
+fn fetch_u8(opcodes: &[u8], offset: u32) -> Res<u8> {
     match opcodes.get(offset as usize) {
         Some(data) => Ok(*data),
-        None => Err(VMError::OpcodeFetch),
+        None => Err(Error::OpcodeFetch),
     }
 }
 
-fn fetch_u16(opcodes: &[u8], offset: u32) -> VMRes<u16> {
+fn fetch_u16(opcodes: &[u8], offset: u32) -> Res<u16> {
     Ok(u16::from_be_bytes([
         fetch_u8(opcodes, offset)?,
         fetch_u8(opcodes, checked_add(offset, 1)?)?,
     ]))
 }
 
-fn fetch_u32(opcodes: &[u8], offset: u32) -> VMRes<u32> {
+fn fetch_u32(opcodes: &[u8], offset: u32) -> Res<u32> {
     Ok(u32::from_be_bytes([
         fetch_u8(opcodes, offset)?,
         fetch_u8(opcodes, checked_add(offset, 1)?)?,
@@ -54,7 +56,7 @@ fn fetch_u32(opcodes: &[u8], offset: u32) -> VMRes<u32> {
     ]))
 }
 
-fn fetch_u64(opcodes: &[u8], offset: u32) -> VMRes<u64> {
+fn fetch_u64(opcodes: &[u8], offset: u32) -> Res<u64> {
     Ok(u64::from_be_bytes([
         fetch_u8(opcodes, offset)?,
         fetch_u8(opcodes, checked_add(offset, 1)?)?,
@@ -67,7 +69,7 @@ fn fetch_u64(opcodes: &[u8], offset: u32) -> VMRes<u64> {
     ]))
 }
 
-fn fetch_f64(opcodes: &[u8], offset: u32) -> VMRes<f64> {
+fn fetch_f64(opcodes: &[u8], offset: u32) -> Res<f64> {
     Ok(f64::from_be_bytes([
         fetch_u8(opcodes, offset)?,
         fetch_u8(opcodes, checked_add(offset, 1)?)?,
@@ -80,7 +82,7 @@ fn fetch_f64(opcodes: &[u8], offset: u32) -> VMRes<f64> {
     ]))
 }
 
-fn dump_opcodes(opcodes: &[u8]) -> VMRes {
+fn dump_opcodes(opcodes: &[u8]) -> Res {
     println!("# Stack size: {}", fetch_u32(opcodes, 0)?);
     let mut i = 4;
     while i < checked_as(opcodes.len())? {
@@ -176,7 +178,7 @@ fn dump_opcodes(opcodes: &[u8]) -> VMRes {
                 println!("PTR {value}");
                 i = checked_add(i, 4)?;
             }
-            _ => return Err(VMError::UnknownOpcode),
+            _ => return Err(Error::UnknownOpcode),
         }
     }
     Ok(())
@@ -205,32 +207,32 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn push(&mut self, value: Value) -> VMRes {
+    pub fn push(&mut self, value: Value) -> Res {
         if self.stack_pointer < self.stack.len() as u32 {
             self.stack[self.stack_pointer as usize] = value;
             self.stack_pointer += 1;
             Ok(())
         } else {
-            Err(VMError::StackOverflow)
+            Err(Error::StackOverflow)
         }
     }
 
-    pub fn pop(&mut self) -> VMRes<Value> {
+    pub fn pop(&mut self) -> Res<Value> {
         if self.stack_pointer >= self.stack.len() as u32 {
-            Err(VMError::StackOverflow)
+            Err(Error::StackOverflow)
         } else if self.stack_pointer == 0 {
-            Err(VMError::StackUnderflow)
+            Err(Error::StackUnderflow)
         } else {
             self.stack_pointer -= 1;
             Ok(self.stack[self.stack_pointer as usize].clone())
         }
     }
 
-    fn peek(&mut self) -> VMRes<Value> {
+    fn peek(&mut self) -> Res<Value> {
         if self.stack_pointer >= self.stack.len() as u32 {
-            Err(VMError::StackOverflow)
+            Err(Error::StackOverflow)
         } else if self.stack_pointer == 0 {
-            Err(VMError::StackUnderflow)
+            Err(Error::StackUnderflow)
         } else {
             Ok(self.stack[(self.stack_pointer - 1) as usize].clone())
         }
@@ -243,7 +245,7 @@ impl<'a> State<'a> {
         println!();
     }
 
-    fn ret(&mut self) -> VMRes<bool> {
+    fn ret(&mut self) -> Res<bool> {
         dumpln!("RET");
         if self.locals == 0 {
             return Ok(false);
@@ -262,7 +264,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn add(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn add(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("ADD");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l.wrapping_add(r))),
@@ -278,12 +280,12 @@ impl<'a> State<'a> {
             }
             _ => {
                 self.message = Some(format!("Unable to addict {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn sub(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn sub(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("SUB");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l.wrapping_sub(r))),
@@ -292,12 +294,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l - r)),
             _ => {
                 self.message = Some(format!("Unable to subtract {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn mul(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn mul(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("MUL");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l.wrapping_mul(r))),
@@ -306,17 +308,17 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l * r)),
             _ => {
                 self.message = Some(format!("Unable to multiply {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn div(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn div(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("DIV");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => {
                 if r == 0 {
-                    Err(VMError::DividingByZero)
+                    Err(Error::DividingByZero)
                 } else {
                     Ok(Value::Integer(l.wrapping_div(r)))
                 }
@@ -326,12 +328,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l / r)),
             _ => {
                 self.message = Some(format!("Unable to divide {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn eq(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn eq(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("EQ");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
@@ -340,12 +342,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l == r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn ne(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn ne(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("NE");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l != r)),
@@ -354,12 +356,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l != r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn ls(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn ls(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("LS");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l < r)),
@@ -368,12 +370,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l < r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn le(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn le(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("LE");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r)),
@@ -382,12 +384,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l <= r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn gr(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn gr(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("GR");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l > r)),
@@ -396,12 +398,12 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l > r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn ge(&mut self, l: Value, r: Value) -> VMRes<Value> {
+    fn ge(&mut self, l: Value, r: Value) -> Res<Value> {
         dumpln!("GE");
         match (l.clone(), r.clone()) {
             (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r)),
@@ -410,14 +412,14 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Boolean(l >= r)),
             _ => {
                 self.message = Some(format!("Unable to compare {l} and {r} values."));
-                Err(VMError::BinaryOperation)
+                Err(Error::BinaryOperation)
             }
         }
     }
 
-    fn bin<F>(&mut self, f: F) -> VMRes<bool>
+    fn bin<F>(&mut self, f: F) -> Res<bool>
     where
-        F: Fn(&mut Self, Value, Value) -> VMRes<Value>,
+        F: Fn(&mut Self, Value, Value) -> Res<Value>,
     {
         let r = self.pop()?;
         let l = self.pop()?;
@@ -427,7 +429,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn int1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn int1(&mut self, opcodes: &[u8]) -> Res<bool> {
         let value = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
@@ -435,7 +437,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn int2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn int2(&mut self, opcodes: &[u8]) -> Res<bool> {
         let value = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
@@ -443,7 +445,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn int8(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn int8(&mut self, opcodes: &[u8]) -> Res<bool> {
         let value = fetch_u64(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("INT {value}");
         self.push(Value::Integer(value as i64))?;
@@ -451,19 +453,19 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn jp2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn jp2(&mut self, opcodes: &[u8]) -> Res<bool> {
         self.program_counter = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)? as u32;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
 
-    fn jp4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn jp4(&mut self, opcodes: &[u8]) -> Res<bool> {
         self.program_counter = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
 
-    fn jf2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn jf2(&mut self, opcodes: &[u8]) -> Res<bool> {
         dumpln!(
             "JF {}",
             fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?
@@ -481,12 +483,12 @@ impl<'a> State<'a> {
             }
             _ => {
                 self.message = Some(format!("Expected bool value, found {value}"));
-                Err(VMError::UnexpectedType)
+                Err(Error::UnexpectedType)
             }
         }
     }
 
-    fn jf4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn jf4(&mut self, opcodes: &[u8]) -> Res<bool> {
         dumpln!(
             "JF {}",
             fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?
@@ -504,12 +506,12 @@ impl<'a> State<'a> {
             }
             _ => {
                 self.message = Some(format!("Expected bool value, found {value}"));
-                Err(VMError::UnexpectedType)
+                Err(Error::UnexpectedType)
             }
         }
     }
 
-    fn real(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn real(&mut self, opcodes: &[u8]) -> Res<bool> {
         let value = fetch_f64(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("REAL {value}");
         self.push(Value::Real(value))?;
@@ -517,7 +519,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn boolean(&mut self, value: bool) -> VMRes<bool> {
+    fn boolean(&mut self, value: bool) -> Res<bool> {
         if value {
             dumpln!("TRUE");
         } else {
@@ -528,21 +530,21 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn drop(&mut self) -> VMRes<bool> {
+    fn drop(&mut self) -> Res<bool> {
         dumpln!("DROP");
         self.pop()?;
         self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
-    fn void(&mut self) -> VMRes<bool> {
+    fn void(&mut self) -> Res<bool> {
         dumpln!("VOID");
         self.push(Value::Void)?;
         self.program_counter = checked_add(self.program_counter, 1)?;
         Ok(true)
     }
 
-    fn list(&mut self) -> VMRes<bool> {
+    fn list(&mut self) -> Res<bool> {
         dumpln!("LIST");
         self.push(Value::Object(Rc::new(RefCell::new(Object::List(
             Vec::new(),
@@ -551,78 +553,78 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn ld1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn ld1(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("LD {index}");
         if self.locals + index as u32 >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.push(self.stack[(self.locals + index as u32) as usize].clone())?;
         self.program_counter = checked_add(self.program_counter, 2)?;
         Ok(true)
     }
 
-    fn ld2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn ld2(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("LD {index}");
         if self.locals + index as u32 >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.push(self.stack[(self.locals + index as u32) as usize].clone())?;
         self.program_counter = checked_add(self.program_counter, 3)?;
         Ok(true)
     }
 
-    fn ld4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn ld4(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("LD {index}");
         if self.locals + index >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.push(self.stack[(self.locals + index) as usize].clone())?;
         self.program_counter = checked_add(self.program_counter, 5)?;
         Ok(true)
     }
 
-    fn st1(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn st1(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("ST {index}");
         if self.locals + index as u32 >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.stack[(self.locals + index as u32) as usize] = self.peek()?;
         self.program_counter = checked_add(self.program_counter, 2)?;
         Ok(true)
     }
 
-    fn st2(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn st2(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u16(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("ST {index}");
         if self.locals + index as u32 >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.stack[(self.locals + index as u32) as usize] = self.peek()?;
         self.program_counter = checked_add(self.program_counter, 3)?;
         Ok(true)
     }
 
-    fn st4(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn st4(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("ST {index}");
         if self.locals + index >= self.stack.len() as u32 {
-            return Err(VMError::StackOverflow);
+            return Err(Error::StackOverflow);
         }
         self.stack[(self.locals + index) as usize] = self.peek()?;
         self.program_counter = checked_add(self.program_counter, 5)?;
         Ok(true)
     }
 
-    fn error<T>(&mut self, m: String) -> VMRes<T> {
+    fn error<T>(&mut self, m: String) -> Res<T> {
         self.message = Some(m);
-        Err(VMError::Custom)
+        Err(Error::Custom)
     }
 
-    fn index_get_list(&mut self, data: &Vec<Value>, key: Value) -> VMRes<Value> {
+    fn index_get_list(&mut self, data: &Vec<Value>, key: Value) -> Res<Value> {
         match key {
             Value::Integer(index) => {
                 if index >= 0 && (index as usize) < data.len() {
@@ -635,13 +637,13 @@ impl<'a> State<'a> {
         }
     }
 
-    fn index_get_object(&mut self, data: &Object, key: Value) -> VMRes<Value> {
+    fn index_get_object(&mut self, data: &Object, key: Value) -> Res<Value> {
         match data {
             Object::List(list) => self.index_get_list(list, key),
         }
     }
 
-    fn index_get(&mut self, data: Value, key: Value) -> VMRes<Value> {
+    fn index_get(&mut self, data: Value, key: Value) -> Res<Value> {
         match data {
             Value::Object(object) => {
                 let object = object.borrow();
@@ -651,7 +653,7 @@ impl<'a> State<'a> {
         }
     }
 
-    fn index_set_list(&mut self, data: &mut Vec<Value>, key: Value, value: Value) -> VMRes {
+    fn index_set_list(&mut self, data: &mut Vec<Value>, key: Value, value: Value) -> Res {
         match key {
             Value::Integer(index) => {
                 if index >= 0 && (index as usize) < data.len() {
@@ -665,13 +667,13 @@ impl<'a> State<'a> {
         }
     }
 
-    fn index_set_object(&mut self, data: &mut Object, key: Value, value: Value) -> VMRes {
+    fn index_set_object(&mut self, data: &mut Object, key: Value, value: Value) -> Res {
         match data {
             Object::List(list) => self.index_set_list(list, key, value),
         }
     }
 
-    fn index_set(&mut self, data: Value, key: Value, value: Value) -> VMRes {
+    fn index_set(&mut self, data: Value, key: Value, value: Value) -> Res {
         match data {
             Value::Object(object) => {
                 let mut object = object.borrow_mut();
@@ -681,7 +683,7 @@ impl<'a> State<'a> {
         }
     }
 
-    fn get(&mut self) -> VMRes<bool> {
+    fn get(&mut self) -> Res<bool> {
         dumpln!("GET");
         let key = self.pop()?;
         let data = self.pop()?;
@@ -691,7 +693,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn set(&mut self) -> VMRes<bool> {
+    fn set(&mut self) -> Res<bool> {
         dumpln!("SET");
         let value = self.pop()?;
         let key = self.pop()?;
@@ -702,11 +704,11 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn call(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn call(&mut self, opcodes: &[u8]) -> Res<bool> {
         let params_count = fetch_u8(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("CALL {params_count}");
         if self.stack_pointer < params_count as u32 + 1 {
-            return Err(VMError::StackUnderflow);
+            return Err(Error::StackUnderflow);
         }
         let in_stack_offset = self.stack_pointer - params_count as u32 - 1;
         let address = self.stack[in_stack_offset as usize].clone();
@@ -730,7 +732,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn ptr(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    fn ptr(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = fetch_u32(opcodes, checked_add(self.program_counter, 1)?)?;
         dumpln!("PTR {index}");
         self.push(Value::Pointer(index))?;
@@ -738,7 +740,7 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    pub fn step(&mut self, opcodes: &[u8]) -> VMRes<bool> {
+    pub fn step(&mut self, opcodes: &[u8]) -> Res<bool> {
         let opcode = fetch_u8(opcodes, self.program_counter)?;
         match opcode {
             opcode::RET => self.ret(),
@@ -775,11 +777,11 @@ impl<'a> State<'a> {
             opcode::GET => self.get(),
             opcode::CALL => self.call(opcodes),
             opcode::PTR => self.ptr(opcodes),
-            _ => Err(VMError::UnknownOpcode),
+            _ => Err(Error::UnknownOpcode),
         }
     }
 
-    pub fn run(&mut self, opcodes: &[u8]) -> VMRes<Value> {
+    pub fn run(&mut self, opcodes: &[u8]) -> Res<Value> {
         if DUMP_OPCODES {
             println!("# OPCODES DUMP");
             dump_opcodes(opcodes)?;

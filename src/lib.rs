@@ -1,17 +1,12 @@
-mod vm_error;
-mod state;
-mod value;
 mod slice_read;
 
-pub use vm_error::*;
-pub use state::*;
-pub use value::*;
 pub use slice_read::*;
 
-pub mod opcode;
 pub mod line;
 pub mod utils;
 pub mod compiler;
+pub mod opcode;
+pub mod vm;
 
 #[cfg(test)]
 mod tests;

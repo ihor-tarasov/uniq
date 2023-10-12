@@ -1,5 +1,5 @@
 #[derive(Debug)]
-pub enum VMError {
+pub enum Error {
     StackOverflow,
     StackUnderflow,
     OpcodeFetch,
@@ -11,4 +11,4 @@ pub enum VMError {
     Custom,
 }
 
-pub type VMRes<T = ()> = Result<T, VMError>;
+pub type Res<T = ()> = Result<T, Error>;

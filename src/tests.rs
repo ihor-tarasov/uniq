@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{utils, Object, SliceRead, Value};
+use crate::{utils, SliceRead, vm::{Value, Object}};
 
 fn eval<'a, T>(code: T, expected: Value)
 where

@@ -1,4 +1,4 @@
-use crate::{line, SliceRead, State, Value, compiler::{Chunk, Compiler}};
+use crate::{line, SliceRead, compiler::{Chunk, Compiler}, vm::{Value, State}};
 use std::{fmt::Write, ops::Range};
 
 pub fn range_info<R>(path: &str, read: &mut R, range: Range<usize>) -> String
