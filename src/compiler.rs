@@ -382,13 +382,11 @@ impl Compiler {
         self.functions.last().unwrap().get(name)
     }
 
-    fn call<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> CompRes
+    fn call<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '('.
-
-        self.load(index)?;
 
         let mut arguments = 0;
         loop {
@@ -476,7 +474,6 @@ impl Compiler {
             match self.token {
                 Token::Equal => self.assign(lexer, index),
                 Token::LeftBracket => self.index(lexer, index),
-                Token::LeftParen => self.call(lexer, index),
                 _ => self.load(index),
             }
         } else {
@@ -696,7 +693,13 @@ impl Compiler {
         R: std::io::Read,
     {
         self.primary(lexer)?;
-        self.binary(lexer, 1)
+        self.binary(lexer, 1)?;
+
+        if self.token == Token::LeftParen {
+            self.call(lexer)?;
+        }
+
+        Ok(())
     }
 
     pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> CompRes
