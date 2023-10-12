@@ -1,146 +1,23 @@
+mod block;
+mod chunk;
+mod error;
+mod function;
+mod opcodes;
+mod pos;
+
+pub use chunk::*;
+pub use error::*;
+pub use pos::*;
+
+use self::{function::Function, opcodes::Opcodes};
+use crate::{lexer::Lexer, opcode, raise, Token};
 use std::{collections::HashMap, ops::Range};
-
-use crate::{lexer::Lexer, opcode, raise, CompRes, CompilerError, Token};
-
-pub struct SrcPos {
-    pub range: Range<usize>,
-    pub source_id: usize,
-}
-
-pub struct Chunk {
-    pub opcodes: Box<[u8]>,
-    pub ranges: HashMap<u32, SrcPos>,
-}
-
-pub struct Opcodes(Vec<u8>);
-
-impl Opcodes {
-    fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    fn push(&mut self, opcode: u8) -> CompRes<()> {
-        if self.0.len() <= u32::MAX as usize {
-            self.0.push(opcode);
-            Ok(())
-        } else {
-            Err(CompilerError::Custom(Box::new(format!(
-                "Too large opcodes count."
-            ))))
-        }
-    }
-
-    fn extend<I>(&mut self, iter: I) -> CompRes<()>
-    where
-        I: IntoIterator<Item = u8>,
-    {
-        for opcode in iter {
-            self.push(opcode)?;
-        }
-        Ok(())
-    }
-
-    fn len(&self) -> u32 {
-        self.0.len() as u32
-    }
-}
-
-impl std::ops::Index<u32> for Opcodes {
-    type Output = u8;
-
-    fn index(&self, index: u32) -> &Self::Output {
-        self.0.index(index as usize)
-    }
-}
-
-impl std::ops::IndexMut<u32> for Opcodes {
-    fn index_mut(&mut self, index: u32) -> &mut Self::Output {
-        self.0.index_mut(index as usize)
-    }
-}
-
-struct Block {
-    locals: HashMap<Box<[u8]>, u32>,
-}
-
-impl Block {
-    fn new() -> Self {
-        Self {
-            locals: HashMap::new(),
-        }
-    }
-
-    fn var(&mut self, name: &[u8], id: u32) -> bool {
-        if let Some(local) = self.locals.get_mut(name) {
-            *local = id;
-            true
-        } else {
-            self.locals.insert(Vec::from(name).into_boxed_slice(), id);
-            false
-        }
-    }
-
-    fn get(&self, name: &[u8]) -> Option<u32> {
-        self.locals.get(name).cloned()
-    }
-
-    fn len(&self) -> usize {
-        self.locals.len()
-    }
-}
-
-struct Function {
-    blocks: Vec<Block>,
-    local_counter: u32,
-    stack_size: u32,
-}
-
-impl Function {
-    fn new() -> Self {
-        Self {
-            blocks: vec![Block::new()],
-            local_counter: 0,
-            stack_size: 0,
-        }
-    }
-
-    fn push(&mut self) {
-        self.blocks.push(Block::new());
-    }
-
-    fn pop(&mut self) {
-        let block = self.blocks.pop().unwrap();
-        self.local_counter -= block.len() as u32;
-    }
-
-    fn var(&mut self, name: &[u8]) -> u32 {
-        debug_assert!(!self.blocks.is_empty());
-        let len = self.blocks.len();
-        let id = self.local_counter;
-        if !self.blocks[len - 1].var(name, id) {
-            self.local_counter += 1;
-            if self.local_counter > self.stack_size {
-                self.stack_size = self.local_counter;
-            }
-        }
-        id
-    }
-
-    fn get(&self, name: &[u8]) -> Option<u32> {
-        for block in self.blocks.iter().rev() {
-            if let Some(id) = block.get(name) {
-                return Some(id);
-            }
-        }
-        None
-    }
-}
 
 pub struct Compiler {
     token: Token,
     range: Range<usize>,
     opcodes: Opcodes,
-    ranges: HashMap<u32, SrcPos>,
+    ranges: HashMap<u32, Pos>,
     buffer: Vec<u8>,
     address_stack: Vec<u32>,
     source_id: usize,
@@ -175,7 +52,7 @@ impl Compiler {
         }
     }
 
-    fn lex<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn lex<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -187,14 +64,11 @@ impl Compiler {
         Ok(())
     }
 
-    fn expect(&self, token: Token) -> CompRes {
+    fn expect(&self, token: Token) -> Res {
         if self.token == token {
             Ok(())
         } else {
-            Err(CompilerError::Custom(Box::new(format!(
-                "Expected {token}, found {}",
-                self.token
-            ))))
+            raise!("Expected {token}, found {}", self.token)
         }
     }
 
@@ -238,7 +112,7 @@ impl Compiler {
         }
     }
 
-    fn integer<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn integer<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -256,7 +130,7 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
-    fn real<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn real<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -266,7 +140,7 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
-    fn boolean<R>(&mut self, lexer: &mut Lexer<R>, value: bool) -> CompRes
+    fn boolean<R>(&mut self, lexer: &mut Lexer<R>, value: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -275,7 +149,7 @@ impl Compiler {
         self.lex(lexer) // Skip value.
     }
 
-    fn subexpression<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn subexpression<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -285,14 +159,14 @@ impl Compiler {
         self.lex(lexer) // Skip ')'.
     }
 
-    fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
         self.expression(lexer)
     }
 
-    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> CompRes
+    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> Res
     where
         R: std::io::Read,
     {
@@ -315,7 +189,7 @@ impl Compiler {
         }
     }
 
-    fn block<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn block<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -327,7 +201,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn if_stat<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn if_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -382,7 +256,7 @@ impl Compiler {
         self.functions.last().unwrap().get(name)
     }
 
-    fn call<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn call<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -391,9 +265,7 @@ impl Compiler {
         let mut arguments = 0;
         loop {
             if arguments > u8::MAX as u32 {
-                return Err(CompilerError::Custom(Box::new(format!(
-                    "Reached maximum function argumens number."
-                ))));
+                return raise!("Reached maximum function argumens number.");
             }
 
             if self.token == Token::RightParen {
@@ -413,7 +285,7 @@ impl Compiler {
         self.opcodes.extend([opcode::CALL, arguments as u8])
     }
 
-    fn store(&mut self, index: u32) -> CompRes {
+    fn store(&mut self, index: u32) -> Res {
         if index <= u8::MAX as u32 {
             self.opcodes.extend([opcode::ST1, index as u8])
         } else if index <= 0xFFFF {
@@ -425,7 +297,7 @@ impl Compiler {
         }
     }
 
-    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> CompRes
+    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
     where
         R: std::io::Read,
     {
@@ -434,7 +306,7 @@ impl Compiler {
         self.store(index)
     }
 
-    fn load(&mut self, index: u32) -> CompRes {
+    fn load(&mut self, index: u32) -> Res {
         if index <= u8::MAX as u32 {
             self.opcodes.extend([opcode::LD1, index as u8])
         } else if index <= 0xFFFF {
@@ -446,7 +318,7 @@ impl Compiler {
         }
     }
 
-    fn index<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> CompRes
+    fn index<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
     where
         R: std::io::Read,
     {
@@ -465,7 +337,7 @@ impl Compiler {
         }
     }
 
-    fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -477,10 +349,10 @@ impl Compiler {
                 _ => self.load(index),
             }
         } else {
-            Err(CompilerError::Custom(Box::new(format!(
+            raise!(
                 "Unknown identifier \"{}\".",
                 std::str::from_utf8(&self.buffer)?
-            ))))
+            )
         }
     }
 
@@ -488,7 +360,7 @@ impl Compiler {
         self.functions.last_mut().unwrap().var(&self.buffer)
     }
 
-    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -510,7 +382,7 @@ impl Compiler {
         self.functions.last_mut().unwrap().pop();
     }
 
-    fn jump(&mut self, address: u32) -> CompRes {
+    fn jump(&mut self, address: u32) -> Res {
         if address <= 0xFFFF {
             self.opcodes.push(opcode::JP2)?;
             self.opcodes.extend((address as u16).to_be_bytes())?;
@@ -521,7 +393,7 @@ impl Compiler {
         }
     }
 
-    fn while_stat<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn while_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -541,7 +413,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn list<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn list<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -559,7 +431,7 @@ impl Compiler {
         self.lex(lexer) // Skip ']'
     }
 
-    fn function<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn function<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -573,9 +445,7 @@ impl Compiler {
         let mut args_count = 0;
         while self.token == Token::Identifier {
             if args_count > u8::MAX as u32 {
-                return Err(CompilerError::Custom(Box::new(format!(
-                    "Reached maximum function argumens number."
-                ))));
+                return raise!("Reached maximum function argumens number.");
             }
             self.add_local();
             self.lex(lexer)?; // Skip argument name.
@@ -602,7 +472,7 @@ impl Compiler {
 
         let function = self.functions.pop().unwrap();
 
-        (function.stack_size - args_count)
+        (function.stack_size() - args_count)
             .to_be_bytes()
             .iter()
             .cloned()
@@ -617,7 +487,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn primary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -640,7 +510,7 @@ impl Compiler {
         }
     }
 
-    fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8) -> CompRes
+    fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8) -> Res
     where
         R: std::io::Read,
     {
@@ -678,7 +548,7 @@ impl Compiler {
 
             self.ranges.insert(
                 self.opcodes.len(),
-                SrcPos {
+                Pos {
                     range,
                     source_id: self.source_id,
                 },
@@ -688,7 +558,7 @@ impl Compiler {
         }
     }
 
-    fn expression<R>(&mut self, lexer: &mut Lexer<R>) -> CompRes
+    fn expression<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
@@ -702,7 +572,7 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> CompRes
+    pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> Res
     where
         R: std::io::Read,
     {
@@ -716,11 +586,12 @@ impl Compiler {
         self.functions.push(Function::new());
 
         self.statements(&mut lexer, Token::End)?;
-        
+
         self.opcodes.push(opcode::RET)?;
         let function = self.functions.pop().unwrap();
 
-        function.stack_size
+        function
+            .stack_size()
             .to_be_bytes()
             .iter()
             .cloned()
@@ -732,7 +603,7 @@ impl Compiler {
 
     pub fn into_chunk(self) -> Chunk {
         Chunk {
-            opcodes: self.opcodes.0.into_boxed_slice(),
+            opcodes: self.opcodes.into(),
             ranges: self.ranges,
         }
     }

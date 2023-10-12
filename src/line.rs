@@ -1,7 +1,7 @@
 use core::ops::Range;
 use std::io::SeekFrom;
 
-use crate::CompRes;
+use crate::compiler::{Res, Error};
 
 pub struct LineInfo {
     pub start: usize,
@@ -42,7 +42,7 @@ where
     })
 }
 
-pub fn print_line<R, W>(read: &mut R, start: usize, write: &mut W) -> CompRes
+pub fn print_line<R, W>(read: &mut R, start: usize, write: &mut W) -> Res
 where
     R: std::io::Read + std::io::Seek,
     W: std::fmt::Write,
@@ -61,7 +61,7 @@ where
             }
             Err(error) => match error.kind() {
                 std::io::ErrorKind::UnexpectedEof => break,
-                _ => return Err(crate::CompilerError::IO(error)),
+                _ => return Err(Error::IO(error)),
             },
         }
     }
