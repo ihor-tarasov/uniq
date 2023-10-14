@@ -53,15 +53,18 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
-    fn error<T>(&mut self, m: String) -> Res<T> {
-        self.message = Some(m);
-        Err(Error::Custom)
-    }
-
     fn ptr(&mut self, opcodes: &[u8]) -> Res<bool> {
         let index = utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
         dumpln!("PTR {index}");
         self.push(Value::Pointer(index))?;
+        self.program_counter = utils::checked_add(self.program_counter, 5)?;
+        Ok(true)
+    }
+
+    fn nat(&mut self, opcodes: &[u8]) -> Res<bool> {
+        let index = utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
+        dumpln!("NAT {index}");
+        self.push(Value::Native(index))?;
         self.program_counter = utils::checked_add(self.program_counter, 5)?;
         Ok(true)
     }
@@ -103,6 +106,7 @@ impl<'a> State<'a> {
             opcode::GET => self.get(),
             opcode::CALL => self.call(opcodes),
             opcode::PTR => self.ptr(opcodes),
+            opcode::NAT => self.nat(opcodes),
             _ => Err(Error::UnknownOpcode),
         }
     }

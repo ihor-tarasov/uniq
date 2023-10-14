@@ -1,4 +1,4 @@
-use crate::{line, SliceRead, compiler::{Chunk, Compiler}, vm::{Value, State}};
+use crate::{line, SliceRead, compiler::{Chunk, Compiler}, vm::{Value, State}, natives::Natives};
 use std::{fmt::Write, ops::Range};
 
 pub fn range_info<R>(path: &str, read: &mut R, range: Range<usize>) -> String
@@ -14,11 +14,11 @@ where
     buffer
 }
 
-pub fn compile<R>(path: &str, read: &mut R) -> Result<Chunk, String>
+pub fn compile<R>(path: &str, read: &mut R, natives: &Natives) -> Result<Chunk, String>
 where
     R: std::io::Read + std::io::Seek,
 {
-    let mut compiler = Compiler::new(0);
+    let mut compiler = Compiler::new(0, natives);
     match compiler.compile(0, read) {
         Ok(_) => Ok(compiler.into_chunk()),
         Err(error) => {
@@ -29,11 +29,11 @@ where
     }
 }
 
-pub fn compile_eof<R>(path: &str, read: &mut R) -> Result<Chunk, Option<String>>
+pub fn compile_eof<R>(path: &str, read: &mut R, natives: &Natives) -> Result<Chunk, Option<String>>
 where
     R: std::io::Read + std::io::Seek,
 {
-    let mut compiler = Compiler::new(0);
+    let mut compiler = Compiler::new(0, natives);
     match compiler.compile(0, read) {
         Ok(_) => Ok(compiler.into_chunk()),
         Err(error) => {
@@ -49,12 +49,12 @@ where
     }
 }
 
-pub fn run<R>(paths: &[&str], read: &mut R, chunk: &Chunk) -> Result<Value, String>
+pub fn run<R>(paths: &[&str], read: &mut R, chunk: &Chunk, natives: &Natives) -> Result<Value, String>
 where
     R: std::io::Read + std::io::Seek,
 {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    let mut state = State::new(&mut stack);
+    let mut state = State::new(&mut stack, natives);
     match state.run(&chunk.opcodes) {
         Ok(value) => Ok(value),
         Err(error) => {
@@ -79,13 +79,13 @@ where
     }
 }
 
-pub fn eval<'a, T>(code: T)
+pub fn eval<'a, T>(code: T, natives: &Natives)
 where
     T: Into<SliceRead<'a>>,
 {
     let mut read = code.into();
-    match compile("stdin", &mut read) {
-        Ok(chunk) => match run(&["stdin"], &mut read, &chunk) {
+    match compile("stdin", &mut read, natives) {
+        Ok(chunk) => match run(&["stdin"], &mut read, &chunk, natives) {
             Ok(value) => println!("{value}"),
             Err(error) => eprintln!("{error}"),
         },
@@ -93,13 +93,13 @@ where
     }
 }
 
-pub fn eval_eof<'a, T>(code: T) -> bool
+pub fn eval_eof<'a, T>(code: T, natives: &Natives) -> bool
 where
     T: Into<SliceRead<'a>>,
 {
     let mut read = code.into();
-    match compile_eof("stdin", &mut read) {
-        Ok(chunk) => match run(&["stdin"], &mut read, &chunk) {
+    match compile_eof("stdin", &mut read, natives) {
+        Ok(chunk) => match run(&["stdin"], &mut read, &chunk, natives) {
             Ok(value) => {
                 println!("{value}");
                 false

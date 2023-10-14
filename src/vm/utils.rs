@@ -159,6 +159,11 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
                 println!("PTR {value}");
                 i = checked_add(i, 4)?;
             }
+            opcode::NAT => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("NAT {value}");
+                i = checked_add(i, 4)?;
+            }
             _ => return Err(Error::UnknownOpcode),
         }
     }

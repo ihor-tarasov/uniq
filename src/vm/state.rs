@@ -1,4 +1,6 @@
-use super::Value;
+use crate::natives::Natives;
+
+use super::{Value, Res, Error};
 
 pub struct State<'a> {
     pub(super) stack: &'a mut [Value],
@@ -6,10 +8,11 @@ pub struct State<'a> {
     pub(super) program_counter: u32,
     pub(super) locals: u32,
     pub(super) message: Option<String>,
+    pub(super) natives: &'a Natives,
 }
 
 impl<'a> State<'a> {
-    pub fn new(stack: &'a mut [Value]) -> Self {
+    pub fn new(stack: &'a mut [Value], natives: &'a Natives) -> Self {
         assert!(
             stack.len() <= u32::MAX as usize,
             "Maximum stack length must be u32::MAX."
@@ -20,6 +23,7 @@ impl<'a> State<'a> {
             program_counter: 0,
             locals: 0,
             message: None,
+            natives,
         }
     }
 
@@ -36,5 +40,14 @@ impl<'a> State<'a> {
 
     pub fn program_counter(&self) -> u32 {
         self.program_counter
+    }
+
+    pub fn arg(&self, index: u8) -> Value {
+        self.stack[(self.locals + index as u32) as usize].clone()
+    }
+
+    pub fn error<T>(&mut self, m: String) -> Res<T> {
+        self.message = Some(m);
+        Err(Error::Custom)
     }
 }

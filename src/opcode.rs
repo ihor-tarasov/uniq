@@ -34,6 +34,7 @@ pub const JF4: u8 = 0x61;
 pub const LD4: u8 = 0x62;
 pub const ST4: u8 = 0x63;
 pub const PTR: u8 = 0x64;
+pub const NAT: u8 = 0x65;
 // 0x80..=0x9F 9 byte opcodes
 pub const INT8: u8 = 0x80;
 pub const REAL: u8 = 0x81;

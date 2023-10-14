@@ -7,6 +7,7 @@ pub enum Value {
     Integer(i64),
     Real(f64),
     Pointer(u32),
+    Native(u32),
     CallState(u32, u32),
     Object(Rc<RefCell<Object>>),
 }
@@ -18,7 +19,8 @@ impl std::fmt::Display for Value {
             Value::Boolean(value) => write!(f, "{value}"),
             Value::Integer(value) => write!(f, "{value}"),
             Value::Real(value) => write!(f, "{value}"),
-            Value::Pointer(value) => write!(f, "{value}"),
+            Value::Pointer(value) => write!(f, "${value}"),
+            Value::Native(value) => write!(f, "${value}"),
             Value::CallState(pc, locals) => write!(f, "(PC:{pc} LC:{locals})"),
             Value::Object(object) => write!(f, "{}", object.borrow()),
         }
@@ -34,6 +36,12 @@ impl Object {
     pub fn push(&mut self, value: Value) {
         match self {
             Object::List(list) => list.push(value),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Object::List(list) => list.len(),
         }
     }
 }

@@ -12,10 +12,10 @@ pub use error::*;
 pub use pos::*;
 
 use self::{function::Function, opcodes::Opcodes, lexer::Lexer, token::Token};
-use crate::{opcode, raise};
+use crate::{opcode, raise, natives::Natives};
 use std::{collections::HashMap, ops::Range};
 
-pub struct Compiler {
+pub struct Compiler<'a> {
     token: Token,
     range: Range<usize>,
     opcodes: Opcodes,
@@ -24,6 +24,7 @@ pub struct Compiler {
     address_stack: Vec<u32>,
     source_id: usize,
     functions: Vec<Function>,
+    natives: &'a Natives,
 }
 
 fn get_precedence(token: Token) -> u8 {
@@ -40,8 +41,8 @@ fn get_precedence(token: Token) -> u8 {
     }
 }
 
-impl Compiler {
-    pub fn new(source_id: usize) -> Self {
+impl<'a> Compiler<'a> {
+    pub fn new(source_id: usize, natives: &'a Natives) -> Self {
         Self {
             token: Token::End,
             range: 0..0,
@@ -51,6 +52,7 @@ impl Compiler {
             address_stack: Vec::new(),
             source_id,
             functions: Vec::new(),
+            natives,
         }
     }
 
@@ -320,12 +322,11 @@ impl Compiler {
         }
     }
 
-    fn index<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
+    fn index<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '['.
-        self.load(index)?;
         self.expression(lexer)?;
         self.expect(Token::RightBracket)?;
         self.lex(lexer)?; // Skip ']'.
@@ -347,9 +348,12 @@ impl Compiler {
             self.lex(lexer)?; // Skip identifier.
             match self.token {
                 Token::Equal => self.assign(lexer, index),
-                Token::LeftBracket => self.index(lexer, index),
                 _ => self.load(index),
             }
+        } else if let Some(index) = self.natives.get_index(&self.buffer) {
+            self.lex(lexer)?; // Skip identifier.
+            self.opcodes.push(opcode::NAT)?;
+            self.opcodes.extend(index.to_be_bytes())
         } else {
             raise!(
                 "Unknown identifier \"{}\".",
@@ -567,11 +571,13 @@ impl Compiler {
         self.primary(lexer)?;
         self.binary(lexer, 1)?;
 
-        if self.token == Token::LeftParen {
-            self.call(lexer)?;
+        loop {
+            match self.token {
+                Token::LeftParen => self.call(lexer)?,
+                Token::LeftBracket => self.index(lexer)?,
+                _ => break Ok(()),
+            }
         }
-
-        Ok(())
     }
 
     pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> Res
