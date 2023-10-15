@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, fmt};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -9,7 +9,7 @@ pub enum Value {
     Pointer(u32),
     Native(u32),
     CallState(u32, u32),
-    Object(Rc<RefCell<Object>>),
+    List(Rc<RefCell<Vec<Value>>>),
 }
 
 impl std::fmt::Display for Value {
@@ -22,35 +22,9 @@ impl std::fmt::Display for Value {
             Value::Pointer(value) => write!(f, "${value}"),
             Value::Native(value) => write!(f, "${value}"),
             Value::CallState(pc, locals) => write!(f, "(PC:{pc} LC:{locals})"),
-            Value::Object(object) => write!(f, "{}", object.borrow()),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Object {
-    List(Vec<Value>),
-}
-
-impl Object {
-    pub fn push(&mut self, value: Value) {
-        match self {
-            Object::List(list) => list.push(value),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Object::List(list) => list.len(),
-        }
-    }
-}
-
-impl fmt::Display for Object {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Object::List(list) => {
+            Value::List(list) => {
                 write!(f, "[")?;
+                let list = list.borrow();
                 let mut iter = list.iter();
                 if let Some(value) = iter.next() {
                     write!(f, "{value}")?;

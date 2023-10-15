@@ -1,4 +1,7 @@
-use crate::{vm::{State, Value, Res, Error}, dumpln};
+use crate::{
+    dumpln,
+    vm::{Error, Res, State, Value},
+};
 
 impl<'a> State<'a> {
     pub(super) fn add(&mut self, l: Value, r: Value) -> Res<Value> {
@@ -8,12 +11,11 @@ impl<'a> State<'a> {
             (Value::Integer(l), Value::Real(r)) => Ok(Value::Real((l as f64) + r)),
             (Value::Real(l), Value::Integer(r)) => Ok(Value::Real(l + (r as f64))),
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l + r)),
-            (Value::Object(object), value) => {
+            (Value::List(list), value) => {
                 {
-                    let mut object = object.borrow_mut();
-                    object.push(value);
+                    list.borrow_mut().push(value);
                 }
-                Ok(Value::Object(object))
+                Ok(Value::List(list))
             }
             _ => {
                 self.message = Some(format!("Unable to addict {l} and {r} values."));

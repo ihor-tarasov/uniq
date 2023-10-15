@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::RefCell};
 
-use crate::{vm::{Error, Object}, opcode};
+use crate::{vm::Error, opcode};
 
 use super::{State, Res, Value, utils};
 
@@ -46,9 +46,8 @@ impl<'a> State<'a> {
 
     fn list(&mut self) -> Res<bool> {
         dumpln!("LIST");
-        self.push(Value::Object(Rc::new(RefCell::new(Object::List(
-            Vec::new(),
-        )))))?;
+        self.push(Value::List(Rc::new(RefCell::new(Vec::new(),
+        ))))?;
         self.program_counter = utils::checked_add(self.program_counter, 1)?;
         Ok(true)
     }

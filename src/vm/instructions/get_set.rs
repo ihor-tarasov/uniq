@@ -1,4 +1,4 @@
-use crate::{vm::{State, Value, Res, Object, utils}, dumpln};
+use crate::{vm::{State, Value, Res, utils}, dumpln};
 
 impl<'a> State<'a> {
     fn index_get_list(&mut self, data: &Vec<Value>, key: Value) -> Res<Value> {
@@ -14,17 +14,11 @@ impl<'a> State<'a> {
         }
     }
 
-    fn index_get_object(&mut self, data: &Object, key: Value) -> Res<Value> {
-        match data {
-            Object::List(list) => self.index_get_list(list, key),
-        }
-    }
-
     fn index_get(&mut self, data: Value, key: Value) -> Res<Value> {
         match data {
-            Value::Object(object) => {
-                let object = object.borrow();
-                self.index_get_object(&object, key)
+            Value::List(list) => {
+                let list = list.borrow();
+                self.index_get_list(&list, key)
             }
             _ => self.error(format!("Can't to index {data}.")),
         }
@@ -44,17 +38,11 @@ impl<'a> State<'a> {
         }
     }
 
-    fn index_set_object(&mut self, data: &mut Object, key: Value, value: Value) -> Res {
-        match data {
-            Object::List(list) => self.index_set_list(list, key, value),
-        }
-    }
-
     fn index_set(&mut self, data: Value, key: Value, value: Value) -> Res {
         match data {
-            Value::Object(object) => {
-                let mut object = object.borrow_mut();
-                self.index_set_object(&mut object, key, value)
+            Value::List(list) => {
+                let mut list = list.borrow_mut();
+                self.index_set_list(&mut list, key, value)
             }
             _ => self.error(format!("Can't to index {data}.")),
         }
