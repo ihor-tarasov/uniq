@@ -133,6 +133,7 @@ where
             b"let" => Token::Let,
             b"while" => Token::While,
             b"for" => Token::For,
+            b"return" => Token::Return,
             _ => Token::Identifier,
         })
     }

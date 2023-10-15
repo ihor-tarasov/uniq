@@ -163,11 +163,28 @@ impl<'a> Compiler<'a> {
         self.lex(lexer) // Skip ')'.
     }
 
+    fn return_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'return'.
+
+        match self.token {
+            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            _ => self.expression(lexer)?,
+        }
+
+        self.opcodes.push(opcode::RET)
+    }
+
     fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        self.expression(lexer)
+        match self.token {
+            Token::Return => self.return_stat(lexer),
+            _ => self.expression(lexer),
+        }
     }
 
     fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> Res
@@ -674,15 +691,16 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.primary(lexer)?;
-        self.binary(lexer, 1)?;
 
         loop {
             match self.token {
                 Token::LeftParen => self.call(lexer)?,
                 Token::LeftBracket => self.index(lexer)?,
-                _ => break Ok(()),
+                _ => break,
             }
         }
+
+        self.binary(lexer, 1)
     }
 
     pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> Res

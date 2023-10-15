@@ -10,6 +10,7 @@ pub enum Token {
     Let, // 'let'
     While, // 'while'
     For, // 'for'
+    Return, // 'return'
     VerticalBar, // '|'
     Comma, // ','
     LeftParen, // '('
@@ -48,6 +49,7 @@ impl std::fmt::Display for Token {
             Token::Let => write!(f, "'let'"),
             Token::While => write!(f, "'while'"),
             Token::For => write!(f, "'for'"),
+            Token::Return => write!(f, "'return'"),
             Token::LeftBracket => write!(f, "'['"),
             Token::RightBracket => write!(f, "']'"),
             Token::VerticalBar => write!(f, "'|'"),
