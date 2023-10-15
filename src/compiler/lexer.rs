@@ -134,6 +134,8 @@ where
             b"while" => Token::While,
             b"for" => Token::For,
             b"return" => Token::Return,
+            b"break" => Token::Break,
+            b"continue" => Token::Continue,
             _ => Token::Identifier,
         })
     }

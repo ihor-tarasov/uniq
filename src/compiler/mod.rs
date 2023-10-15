@@ -25,6 +25,9 @@ pub struct Compiler<'a> {
     source_id: usize,
     functions: Vec<Function>,
     natives: &'a Natives,
+    cycles_end_addresses: Vec<u32>,
+    cycles_end_addresses_sizes: Vec<u32>,
+    cycles_starts: Vec<u32>,
 }
 
 fn get_precedence(token: Token) -> u8 {
@@ -53,6 +56,9 @@ impl<'a> Compiler<'a> {
             source_id,
             functions: Vec::new(),
             natives,
+            cycles_end_addresses: Vec::new(),
+            cycles_end_addresses_sizes: Vec::new(),
+            cycles_starts: Vec::new(),
         }
     }
 
@@ -177,12 +183,55 @@ impl<'a> Compiler<'a> {
         self.opcodes.push(opcode::RET)
     }
 
+    fn break_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'break'.
+
+        match self.token {
+            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            _ => self.expression(lexer)?,
+        }
+
+        let address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+
+        if let Some(cycle_address_size) = self.cycles_end_addresses_sizes.last_mut() {
+            *cycle_address_size += 1;
+            self.cycles_end_addresses.push(address);
+            Ok(())
+        } else {
+            raise!("Unable to use 'break' statement in this place.")
+        }
+    }
+
+    fn continue_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'continue'.
+
+        match self.token {
+            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            _ => self.expression(lexer)?,
+        }
+
+        if let Some(cycle_start) = self.cycles_starts.last().cloned() {
+            self.jump(cycle_start)
+        } else {
+            raise!("Unable to use 'continue' statement in this place.")
+        }
+    }
+
     fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
         match self.token {
             Token::Return => self.return_stat(lexer),
+            Token::Break => self.break_stat(lexer),
+            Token::Continue => self.continue_stat(lexer),
             _ => self.expression(lexer),
         }
     }
@@ -429,9 +478,22 @@ impl<'a> Compiler<'a> {
         self.opcodes.extend([0; 5])?;
         self.opcodes.push(opcode::DROP)?;
         // Block.
+
+        self.cycles_starts.push(while_start);
+        self.cycles_end_addresses_sizes.push(0);
+
         self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
         self.jump(while_start)?;
+
+        self.cycles_starts.pop().unwrap();
+        let ends_size = self.cycles_end_addresses_sizes.pop().unwrap();
+
+        for _ in 0..ends_size {
+            let address = self.cycles_end_addresses.pop().unwrap();
+            self.set_jp(address, self.opcodes.len());
+        }
+
         self.set_jf(end_jf_address, self.opcodes.len());
         Ok(())
     }

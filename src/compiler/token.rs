@@ -11,6 +11,8 @@ pub enum Token {
     While, // 'while'
     For, // 'for'
     Return, // 'return'
+    Break, // 'break'
+    Continue, // 'continue'
     VerticalBar, // '|'
     Comma, // ','
     LeftParen, // '('
@@ -50,6 +52,8 @@ impl std::fmt::Display for Token {
             Token::While => write!(f, "'while'"),
             Token::For => write!(f, "'for'"),
             Token::Return => write!(f, "'return'"),
+            Token::Break => write!(f, "'break'"),
+            Token::Continue => write!(f, "'continue'"),
             Token::LeftBracket => write!(f, "'['"),
             Token::RightBracket => write!(f, "']'"),
             Token::VerticalBar => write!(f, "'|'"),
