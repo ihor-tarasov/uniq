@@ -419,6 +419,110 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /*
+    
+    for i = 0, i < 10, i = i + 1 {
+        print(i);
+    }
+
+        ; i = 0
+        INT 0
+        ST i
+        DROP
+    
+        VOID ; If 0 iterations
+    start:
+        ; i < 10
+        INT 10
+        LD i
+        LS
+        JF end
+        DROP ; Drop result of the last iteration
+
+        JP skip
+    step:
+        ; i = i + 1
+        INT 1
+        LD i
+        ADD
+        ST i
+        DROP
+        JP end_step
+    skip:
+        ; print(i)
+        NAT print
+        LD i
+        CALL 1
+        
+        JP step
+    end_step:
+        JP for_start
+    end:
+    */
+
+    fn for_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'for'.
+
+        self.enter_block();
+
+        let local_id = self.add_local();
+        self.lex(lexer)?; // Skip variable name.
+
+        self.expect(Token::Equal)?;
+        self.lex(lexer)?; // Skip '='.
+
+        self.expression(lexer)?;
+        self.store(local_id)?;
+        self.opcodes.push(opcode::DROP)?;
+
+        if self.token == Token::Comma {
+            self.lex(lexer)?; // Skip ','
+        }
+
+        self.opcodes.push(opcode::VOID)?;
+        let start = self.opcodes.len();
+
+        // Condition.
+        self.expression(lexer)?;
+        let end_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+        self.opcodes.push(opcode::DROP)?;
+
+        let skip_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+        let step = self.opcodes.len();
+
+        if self.token == Token::Comma {
+            self.lex(lexer)?; // Skip ','
+        }
+
+        self.expression(lexer)?;
+        self.opcodes.push(opcode::DROP)?;
+
+        let end_step_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+
+        self.set_jp(skip_address, self.opcodes.len());
+
+        // Block.
+        self.expect(Token::LeftBrace)?;
+        self.block(lexer)?;
+
+        self.jump(step)?;
+        self.set_jp(end_step_address, self.opcodes.len());
+
+        self.jump(start)?;
+
+        self.set_jf(end_address, self.opcodes.len());
+
+        self.exit_block();
+
+        Ok(())
+    }
+
     fn list<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
@@ -510,6 +614,7 @@ impl<'a> Compiler<'a> {
             Token::While => self.while_stat(lexer),
             Token::LeftBracket => self.list(lexer),
             Token::VerticalBar => self.function(lexer),
+            Token::For => self.for_stat(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),

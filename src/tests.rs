@@ -99,3 +99,8 @@ fn function_tests() {
               };
               factorial(6)", Value::Integer(720));
 }
+
+#[test]
+fn for_tests() {
+    eval("for i = 0, i < 10, i = i + 1 { i }", Value::Integer(9));
+}

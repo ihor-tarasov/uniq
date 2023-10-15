@@ -132,6 +132,7 @@ where
             b"else" => Token::Else,
             b"let" => Token::Let,
             b"while" => Token::While,
+            b"for" => Token::For,
             _ => Token::Identifier,
         })
     }
