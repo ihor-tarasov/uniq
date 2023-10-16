@@ -71,4 +71,16 @@ impl<'a> State<'a> {
             }
         }
     }
+
+    pub(super) fn inc(&mut self, value: Value) -> Res<Value> {
+        dumpln!("INC");
+        match value.clone() {
+            Value::Integer(value) => Ok(Value::Integer(value.wrapping_add(1))),
+            Value::Real(value) => Ok(Value::Real(value + 1.0)),
+            _ => {
+                self.message = Some(format!("Unable to increment {value} value."));
+                Err(Error::UnaryOperation)
+            }
+        }
+    }
 }

@@ -44,6 +44,17 @@ impl<'a> State<'a> {
         Ok(true)
     }
 
+    fn unary<F>(&mut self, f: F) -> Res<bool>
+    where
+        F: Fn(&mut Self, Value) -> Res<Value>,
+    {
+        let value = self.pop()?;
+        let res = f(self, value)?;
+        self.push(res)?;
+        self.program_counter = utils::checked_add(self.program_counter, 1)?;
+        Ok(true)
+    }
+
     fn list(&mut self) -> Res<bool> {
         dumpln!("LIST");
         self.push(Value::List(Rc::new(RefCell::new(Vec::new(),
@@ -106,6 +117,9 @@ impl<'a> State<'a> {
             opcode::CALL => self.call(opcodes),
             opcode::PTR => self.ptr(opcodes),
             opcode::NAT => self.nat(opcodes),
+            opcode::INC => self.unary(Self::inc),
+            opcode::JT2 => self.jt2(opcodes),
+            opcode::JT4 => self.jt4(opcodes),
             _ => Err(Error::UnknownOpcode),
         }
     }

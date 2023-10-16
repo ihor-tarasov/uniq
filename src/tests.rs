@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, io::BufReader, rc::Rc};
 
-use crate::{utils, SliceRead, vm::Value, library};
+use crate::{library, utils, vm::Value, SliceRead};
 
 fn eval<'a, T>(code: T, expected: Value)
 where
@@ -14,6 +14,23 @@ where
             Err(error) => panic!("{error}"),
         },
         Err(error) => panic!("{error}"),
+    }
+}
+
+fn eval_file(path: &str, expected: Value) {
+    let natives = library::load();
+    match std::fs::File::open(path) {
+        Ok(file) => {
+            let mut read = BufReader::new(file);
+            match utils::compile(path, &mut read, &natives) {
+                Ok(chunk) => match utils::run(&[path], &mut read, &chunk, &natives) {
+                    Ok(value) => assert_eq!(value, expected),
+                    Err(error) => panic!("{error}"),
+                },
+                Err(error) => panic!("{error}"),
+            }
+        }
+        Err(error) => panic!("Unable to open file, IOError: {error}"),
     }
 }
 
@@ -51,29 +68,39 @@ fn if_tests() {
 
 #[test]
 fn list_tests() {
-    eval(
-        "[]",
-        Value::List(Rc::new(RefCell::new(Vec::new()))),
-    );
+    eval("[]", Value::List(Rc::new(RefCell::new(Vec::new()))));
     eval(
         "[2]",
         Value::List(Rc::new(RefCell::new(vec![Value::Integer(2)]))),
     );
     eval(
         "[2 3]",
-        Value::List(Rc::new(RefCell::new(vec![Value::Integer(2), Value::Integer(3)]))),
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(2),
+            Value::Integer(3),
+        ]))),
     );
     eval(
         "[2, 3]",
-        Value::List(Rc::new(RefCell::new(vec![Value::Integer(2), Value::Integer(3)]))),
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(2),
+            Value::Integer(3),
+        ]))),
     );
     eval(
         "[2, 3,]",
-        Value::List(Rc::new(RefCell::new(vec![Value::Integer(2), Value::Integer(3)]))),
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(2),
+            Value::Integer(3),
+        ]))),
     );
     eval(
         "[2, 3] + 4",
-        Value::List(Rc::new(RefCell::new(vec![Value::Integer(2), Value::Integer(3), Value::Integer(4)]))),
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(2),
+            Value::Integer(3),
+            Value::Integer(4),
+        ]))),
     );
 }
 
@@ -87,8 +114,12 @@ fn indexing_tests() {
 #[test]
 fn function_tests() {
     eval("let a = |b| { b + 1 }; a(4)", Value::Integer(5));
-    eval("let power = |n| { n * n }; power(power(10))", Value::Integer(10_000));
-    eval("let factorial = |n| {
+    eval(
+        "let power = |n| { n * n }; power(power(10))",
+        Value::Integer(10_000),
+    );
+    eval(
+        "let factorial = |n| {
                       let fact = 1;
                       let i = 2;
                       while i <= n {
@@ -97,10 +128,27 @@ fn function_tests() {
                       }
                       fact
               };
-              factorial(6)", Value::Integer(720));
+              factorial(6)",
+        Value::Integer(720),
+    );
 }
 
 #[test]
 fn for_tests() {
     eval("for i = 0, i < 10, i = i + 1 { i }", Value::Integer(9));
+}
+
+#[test]
+fn merge_sort() {
+    eval_file(
+        "tests/merge_sort.uniq",
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(1),
+            Value::Integer(3),
+            Value::Integer(5),
+            Value::Integer(9),
+            Value::Integer(12),
+            Value::Integer(13),
+        ]))),
+    )
 }

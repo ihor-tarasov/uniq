@@ -1,14 +1,19 @@
-use crate::{vm::{State, Res, utils, Value, Error}, dumpln};
+use crate::{
+    dumpln,
+    vm::{utils, Error, Res, State, Value},
+};
 
 impl<'a> State<'a> {
     pub(super) fn jp2(&mut self, opcodes: &[u8]) -> Res<bool> {
-        self.program_counter = utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)? as u32;
+        self.program_counter =
+            utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)? as u32;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
 
     pub(super) fn jp4(&mut self, opcodes: &[u8]) -> Res<bool> {
-        self.program_counter = utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
+        self.program_counter =
+            utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
         dumpln!("JP {}", self.program_counter);
         Ok(true)
     }
@@ -25,7 +30,8 @@ impl<'a> State<'a> {
                     self.program_counter = utils::checked_add(self.program_counter, 5)?;
                 } else {
                     self.program_counter =
-                    utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)? as u32;
+                        utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)?
+                            as u32;
                 }
                 Ok(true)
             }
@@ -48,7 +54,54 @@ impl<'a> State<'a> {
                     self.program_counter = utils::checked_add(self.program_counter, 5)?;
                 } else {
                     self.program_counter =
-                    utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
+                        utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
+                }
+                Ok(true)
+            }
+            _ => {
+                self.message = Some(format!("Expected bool value, found {value}"));
+                Err(Error::UnexpectedType)
+            }
+        }
+    }
+
+    pub(super) fn jt2(&mut self, opcodes: &[u8]) -> Res<bool> {
+        dumpln!(
+            "JT {}",
+            utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)?
+        );
+        let value = self.pop()?;
+        match value {
+            Value::Boolean(value) => {
+                if value {
+                    self.program_counter =
+                        utils::fetch_u16(opcodes, utils::checked_add(self.program_counter, 1)?)?
+                            as u32;
+                } else {
+                    self.program_counter = utils::checked_add(self.program_counter, 5)?;
+                }
+                Ok(true)
+            }
+            _ => {
+                self.message = Some(format!("Expected bool value, found {value}"));
+                Err(Error::UnexpectedType)
+            }
+        }
+    }
+
+    pub(super) fn jt4(&mut self, opcodes: &[u8]) -> Res<bool> {
+        dumpln!(
+            "JT {}",
+            utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?
+        );
+        let value = self.pop()?;
+        match value {
+            Value::Boolean(value) => {
+                if value {
+                    self.program_counter =
+                        utils::fetch_u32(opcodes, utils::checked_add(self.program_counter, 1)?)?;
+                } else {
+                    self.program_counter = utils::checked_add(self.program_counter, 5)?;
                 }
                 Ok(true)
             }

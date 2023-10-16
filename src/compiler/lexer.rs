@@ -115,6 +115,18 @@ where
         }
     }
 
+    fn double_plus(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'+' => self.single(Token::PlusPlus),
+                _ => Ok(Token::Plus)
+            }
+        } else {
+            Ok(Token::Plus)
+        }
+    }
+
     fn identifier(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         buf.clear();
         while let Some(c) = self.current {
@@ -136,6 +148,9 @@ where
             b"return" => Token::Return,
             b"break" => Token::Break,
             b"continue" => Token::Continue,
+            b"and" => Token::And,
+            b"or" => Token::Or,
+            b"this" => Token::This,
             _ => Token::Identifier,
         })
     }
@@ -143,7 +158,7 @@ where
     pub fn lex(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         if let Some(c) = self.current {
             match c {
-                b'+' => self.single(Token::Plus),
+                b'+' => self.double_plus(),
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
@@ -173,6 +188,15 @@ where
         while let Some(c) = self.current {
             if c.is_ascii_whitespace() {
                 self.advance()?;
+            } else if c == b'#' {
+                self.advance()?;
+                while let Some(c) = self.current {
+                    if c == b'\n' {
+                        break;
+                    } else {
+                        self.advance()?;
+                    }
+                }
             } else {
                 break;
             }

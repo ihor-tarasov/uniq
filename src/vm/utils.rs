@@ -104,6 +104,7 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
             opcode::GR => println!("GR"),
             opcode::LE => println!("LE"),
             opcode::GE => println!("GE"),
+            opcode::INC => println!("INC"),
             opcode::JP2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JP {value}");
@@ -122,6 +123,16 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
             opcode::JF4 => {
                 let value = fetch_u32(opcodes, i)?;
                 println!("JF {value}");
+                i = checked_add(i, 4)?;
+            }
+            opcode::JT2 => {
+                let value = fetch_u16(opcodes, i)?;
+                println!("JT {value}");
+                i = checked_add(i, 4)?;
+            }
+            opcode::JT4 => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("JT {value}");
                 i = checked_add(i, 4)?;
             }
             opcode::DROP => println!("DROP"),

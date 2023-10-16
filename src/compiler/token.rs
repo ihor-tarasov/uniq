@@ -13,6 +13,9 @@ pub enum Token {
     Return, // 'return'
     Break, // 'break'
     Continue, // 'continue'
+    And, // 'and'
+    Or, // 'or'
+    This, // 'this'
     VerticalBar, // '|'
     Comma, // ','
     LeftParen, // '('
@@ -28,6 +31,7 @@ pub enum Token {
     Slash, // '/'
     Equal, // '='
     Exclamation, // '!'
+    PlusPlus, // '++'
     ExclamationEqual, // '!='
     EqualEqual, // '=='
     Less, // '<'
@@ -54,6 +58,9 @@ impl std::fmt::Display for Token {
             Token::Return => write!(f, "'return'"),
             Token::Break => write!(f, "'break'"),
             Token::Continue => write!(f, "'continue'"),
+            Token::And => write!(f, "'and'"),
+            Token::Or => write!(f, "'or'"),
+            Token::This => write!(f, "'this'"),
             Token::LeftBracket => write!(f, "'['"),
             Token::RightBracket => write!(f, "']'"),
             Token::VerticalBar => write!(f, "'|'"),
@@ -69,6 +76,7 @@ impl std::fmt::Display for Token {
             Token::Slash => write!(f, "'/'"),
             Token::Equal => write!(f, "'='"),
             Token::Exclamation => write!(f, "'!'"),
+            Token::PlusPlus => write!(f, "'++'"),
             Token::ExclamationEqual => write!(f, "'!='"),
             Token::EqualEqual => write!(f, "'=='"),
             Token::Less => write!(f, "'<'"),

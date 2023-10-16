@@ -1,0 +1,59 @@
+let merge_sort = |arr, left, right| {   # Helper function that creates the sub cases for sorting
+    let merge = |arr, left, middle, right| {
+        let low = middle - left + 1;        # Size of the left subarray
+        let high = right - middle;          # Size of the right subarray
+
+        let L = [];                         # Create the left and right subarray
+        let R = [];
+
+        for i = 0, i < low, i++ {           # Copy elements into left subarray
+            L = L + arr[left + i];
+        }
+
+        for i = 0, i < high, i++ {          # Copy elements into right subarray
+            R = R + arr[middle + 1 + i];
+        }
+
+        let k = left;                       # Get starting index for sort
+
+        let i = 0;                          
+        let j = 0;
+
+        while i < low and j < high {        # Merge the left and right subarrays
+            if L[i] <= R[j] {
+                arr[k] = L[i];
+                i++;
+            } else {
+                arr[k] = R[j];
+                j++;
+            }
+            k++;
+        }
+
+        while i < low {                     # Merge the remaining elements from the left subarray
+            arr[k] = L[i];
+            i++;
+            k++;
+        }
+
+        while j < high {                    # Merge the remaining elements from right subarray
+            arr[k] = R[j];
+            j++;
+            k++;
+        }
+    }
+
+    let middle = 0;
+    if left < right {                   # Sort only if the left index is lesser than the right index (meaning that sorting is done)
+        middle = (left + right) / 2;
+
+        this(arr, left, middle);        # Left subarray
+        this(arr, middle + 1, right);   # Right subarray
+
+        merge(arr, left, middle, right);# Merge the two subarrays
+    }
+}
+
+let arr = [9, 3, 1, 5, 13, 12];
+merge_sort(arr, 0, len(arr) - 1);
+arr

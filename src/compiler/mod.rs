@@ -102,6 +102,26 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn set_jt(&mut self, address: u32, value: u32) {
+        if value <= 0xFFFF {
+            self.opcodes[address] = opcode::JT2;
+            (value as u16)
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
+        } else {
+            self.opcodes[address] = opcode::JT4;
+            value
+                .to_be_bytes()
+                .iter()
+                .cloned()
+                .enumerate()
+                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
+        }
+    }
+
     fn set_jp(&mut self, address: u32, value: u32) {
         if value <= 0xFFFF {
             self.opcodes[address] = opcode::JP2;
@@ -406,6 +426,16 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn postfix_identifier_increment<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '++'.
+        self.load(index)?;
+        self.opcodes.push(opcode::INC)?;
+        self.store(index)
+    }
+
     fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
@@ -414,6 +444,7 @@ impl<'a> Compiler<'a> {
             self.lex(lexer)?; // Skip identifier.
             match self.token {
                 Token::Equal => self.assign(lexer, index),
+                Token::PlusPlus => self.postfix_identifier_increment(lexer, index),
                 _ => self.load(index),
             }
         } else if let Some(index) = self.natives.get_index(&self.buffer) {
@@ -463,6 +494,158 @@ impl<'a> Compiler<'a> {
             self.opcodes.push(opcode::JP4)?;
             self.opcodes.extend(address.to_be_bytes())
         }
+    }
+
+    /*
+    
+    2 == 0 and 3 == 2
+
+        INT 2
+        INT 0
+        EQ
+
+        JF end_false
+
+        INT 3
+        INT 2
+        EQ
+
+        JF end_false
+
+        TRUE
+        JP end
+
+    end_false:
+        FALSE
+    end:
+
+    */
+
+    fn logic_and<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'and'.
+        
+        let mut address_count = 0;
+
+        let end_false_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+        self.address_stack.push(end_false_address);
+        address_count += 1;
+
+        loop {
+            self.expression_without_logic(lexer)?;
+
+            let end_false_address = self.opcodes.len();
+            self.opcodes.extend([0; 5])?;
+            self.address_stack.push(end_false_address);
+            address_count += 1;
+
+            match self.token {
+                Token::And => {
+                    self.lex(lexer)?; // Skip 'and'.
+                }
+                Token::Or => {
+                    return raise!("Unable to combine 'and' and 'or' operators.");
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        self.opcodes.push(opcode::TRUE)?;
+
+        let end_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+
+        for _ in 0..address_count {
+            let address = self.address_stack.pop().unwrap();
+            self.set_jf(address, self.opcodes.len());
+        }
+
+        self.opcodes.push(opcode::FALSE)?;
+
+        self.set_jp(end_address, self.opcodes.len());
+
+        Ok(())
+    }
+
+    /*
+    
+    2 == 0 or 3 == 2
+
+        INT 2
+        INT 0
+        EQ
+
+        JT end_true
+
+        INT 3
+        INT 2
+        EQ
+
+        JT end_true
+
+        FALSE
+        JP end
+
+    end_true:
+        TRUE
+    end:
+
+    */
+
+    fn logic_or<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'and'.
+        
+        let mut address_count = 0;
+
+        let end_true_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+        self.address_stack.push(end_true_address);
+        address_count += 1;
+
+        loop {
+            self.expression_without_logic(lexer)?;
+
+            let end_true_address = self.opcodes.len();
+            self.opcodes.extend([0; 5])?;
+            self.address_stack.push(end_true_address);
+            address_count += 1;
+
+            match self.token {
+                Token::Or => {
+                    self.lex(lexer)?; // Skip 'or'.
+                }
+                Token::And => {
+                    return raise!("Unable to combine 'and' and 'or' operators.");
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        self.opcodes.push(opcode::FALSE)?;
+
+        let end_address = self.opcodes.len();
+        self.opcodes.extend([0; 5])?;
+
+        for _ in 0..address_count {
+            let address = self.address_stack.pop().unwrap();
+            self.set_jt(address, self.opcodes.len());
+        }
+
+        self.opcodes.push(opcode::TRUE)?;
+
+        self.set_jp(end_address, self.opcodes.len());
+
+        Ok(())
     }
 
     fn while_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -620,6 +803,19 @@ impl<'a> Compiler<'a> {
         self.lex(lexer) // Skip ']'
     }
 
+    fn this<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip 'this'.
+        self.opcodes.push(opcode::PTR)?;
+        if let Some(address) = self.functions.last().unwrap().address() {
+            self.opcodes.extend(address.to_be_bytes())
+        } else {
+            raise!("Using 'this' outside a function")
+        }
+    }
+
     fn function<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
@@ -629,7 +825,8 @@ impl<'a> Compiler<'a> {
         let end_jp_address = self.opcodes.len();
         self.opcodes.extend([0; 5])?;
 
-        self.functions.push(Function::new());
+        let function_address = self.opcodes.len();
+        self.functions.push(Function::new(Some(function_address)));
 
         let mut args_count = 0;
         while self.token == Token::Identifier {
@@ -647,8 +844,6 @@ impl<'a> Compiler<'a> {
 
         self.expect(Token::VerticalBar)?;
         self.lex(lexer)?; // Skip '|'.
-
-        let function_address = self.opcodes.len();
 
         self.opcodes.push(args_count as u8)?;
         let stack_size_address = self.opcodes.len();
@@ -694,9 +889,25 @@ impl<'a> Compiler<'a> {
             Token::LeftBracket => self.list(lexer),
             Token::VerticalBar => self.function(lexer),
             Token::For => self.for_stat(lexer),
+            Token::This => self.this(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),
+        }
+    }
+
+    fn secondary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.primary(lexer)?;
+
+        loop {
+            match self.token {
+                Token::LeftParen => self.call(lexer)?,
+                Token::LeftBracket => self.index(lexer)?,
+                _ => break Ok(()),
+            }
         }
     }
 
@@ -728,7 +939,7 @@ impl<'a> Compiler<'a> {
             let range = self.range.clone();
 
             self.lex(lexer)?;
-            self.primary(lexer)?;
+            self.secondary(lexer)?;
 
             let next = get_precedence(self.token);
 
@@ -748,21 +959,25 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn expression_without_logic<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.secondary(lexer)?;
+        self.binary(lexer, 1)
+    }
+
     fn expression<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        self.primary(lexer)?;
+        self.expression_without_logic(lexer)?;
 
-        loop {
-            match self.token {
-                Token::LeftParen => self.call(lexer)?,
-                Token::LeftBracket => self.index(lexer)?,
-                _ => break,
-            }
+        match self.token {
+            Token::And => self.logic_and(lexer),
+            Token::Or => self.logic_or(lexer),
+            _ => Ok(())
         }
-
-        self.binary(lexer, 1)
     }
 
     pub fn compile<R>(&mut self, source_id: usize, read: &mut R) -> Res
@@ -776,7 +991,7 @@ impl<'a> Compiler<'a> {
         let stack_size_address = self.opcodes.len();
         self.opcodes.extend([0; 4])?;
 
-        self.functions.push(Function::new());
+        self.functions.push(Function::new(None));
 
         self.statements(&mut lexer, Token::End)?;
 

@@ -4,14 +4,16 @@ pub struct Function {
     blocks: Vec<Block>,
     local_counter: u32,
     stack_size: u32,
+    address: Option<u32>,
 }
 
 impl Function {
-    pub fn new() -> Self {
+    pub fn new(address: Option<u32>) -> Self {
         Self {
             blocks: vec![Block::new()],
             local_counter: 0,
             stack_size: 0,
+            address,
         }
     }
 
@@ -48,5 +50,9 @@ impl Function {
 
     pub fn stack_size(&self) -> u32 {
         self.stack_size
+    }
+
+    pub fn address(&self) -> Option<u32> {
+        self.address
     }
 }
