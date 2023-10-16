@@ -342,8 +342,12 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn find_variable(&self, name: &[u8]) -> Option<u32> {
+    fn find_local(&self, name: &[u8]) -> Option<u32> {
         self.functions.last().unwrap().get(name)
+    }
+
+    fn find_global(&self, name: &[u8]) -> Option<u32> {
+        self.functions.first().unwrap().get(name)
     }
 
     fn call<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -375,35 +379,35 @@ impl<'a> Compiler<'a> {
         self.opcodes.extend([opcode::CALL, arguments as u8])
     }
 
-    fn store(&mut self, index: u32) -> Res {
+    fn store(&mut self, index: u32, is_local: bool) -> Res {
         if index <= u8::MAX as u32 {
-            self.opcodes.extend([opcode::ST1, index as u8])
+            self.opcodes.extend([if is_local { opcode::ST1 } else { opcode::GS1 }, index as u8])
         } else if index <= 0xFFFF {
-            self.opcodes.push(opcode::ST2)?;
+            self.opcodes.push(if is_local { opcode::ST2 } else { opcode::GS2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
-            self.opcodes.push(opcode::ST4)?;
+            self.opcodes.push(if is_local { opcode::ST4 } else { opcode::GS4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
 
-    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
+    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_local: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '='.
         self.expression(lexer)?;
-        self.store(index)
+        self.store(index, is_local)
     }
 
-    fn load(&mut self, index: u32) -> Res {
+    fn load(&mut self, index: u32, is_local: bool) -> Res {
         if index <= u8::MAX as u32 {
-            self.opcodes.extend([opcode::LD1, index as u8])
+            self.opcodes.extend([if is_local { opcode::LD1 } else { opcode::GL1 }, index as u8])
         } else if index <= 0xFFFF {
-            self.opcodes.push(opcode::LD2)?;
+            self.opcodes.push(if is_local { opcode::LD2 } else { opcode::GL2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
-            self.opcodes.push(opcode::LD4)?;
+            self.opcodes.push(if is_local { opcode::LD4 } else { opcode::GL4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
@@ -426,26 +430,33 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn postfix_identifier_increment<R>(&mut self, lexer: &mut Lexer<R>, index: u32) -> Res
+    fn postfix_identifier_increment<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_local: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '++'.
-        self.load(index)?;
+        self.load(index, is_local)?;
         self.opcodes.push(opcode::INC)?;
-        self.store(index)
+        self.store(index, is_local)
     }
 
     fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        if let Some(index) = self.find_variable(&self.buffer) {
+        if let Some(index) = self.find_local(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
             match self.token {
-                Token::Equal => self.assign(lexer, index),
-                Token::PlusPlus => self.postfix_identifier_increment(lexer, index),
-                _ => self.load(index),
+                Token::Equal => self.assign(lexer, index, true),
+                Token::PlusPlus => self.postfix_identifier_increment(lexer, index, true),
+                _ => self.load(index, true),
+            }
+        } else if let Some(index) = self.find_global(&self.buffer) {
+            self.lex(lexer)?; // Skip identifier.
+            match self.token {
+                Token::Equal => self.assign(lexer, index, false),
+                Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
+                _ => self.load(index, false),
             }
         } else if let Some(index) = self.natives.get_index(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
@@ -474,7 +485,7 @@ impl<'a> Compiler<'a> {
         self.expect(Token::Equal)?;
         self.lex(lexer)?; // Skip '='.
         self.expression(lexer)?;
-        self.store(local_id)
+        self.store(local_id, true)
     }
 
     fn enter_block(&mut self) {
@@ -737,7 +748,7 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip '='.
 
         self.expression(lexer)?;
-        self.store(local_id)?;
+        self.store(local_id, true)?;
         self.opcodes.push(opcode::DROP)?;
 
         if self.token == Token::Comma {

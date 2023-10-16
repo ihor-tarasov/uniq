@@ -120,6 +120,12 @@ impl<'a> State<'a> {
             opcode::INC => self.unary(Self::inc),
             opcode::JT2 => self.jt2(opcodes),
             opcode::JT4 => self.jt4(opcodes),
+            opcode::GL1 => self.gl1(opcodes),
+            opcode::GL2 => self.gl2(opcodes),
+            opcode::GL4 => self.gl4(opcodes),
+            opcode::GS1 => self.gs1(opcodes),
+            opcode::GS2 => self.gs2(opcodes),
+            opcode::GS4 => self.gs4(opcodes),
             _ => Err(Error::UnknownOpcode),
         }
     }

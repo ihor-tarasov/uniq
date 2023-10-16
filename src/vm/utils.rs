@@ -155,6 +155,11 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
                 println!("LD {value}");
                 i = checked_add(i, 2)?;
             }
+            opcode::LD4 => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("LD {value}");
+                i = checked_add(i, 4)?;
+            }
             opcode::ST1 => {
                 let value = fetch_u8(opcodes, i)?;
                 println!("ST {value}");
@@ -164,6 +169,41 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
                 let value = fetch_u16(opcodes, i)?;
                 println!("ST {value}");
                 i = checked_add(i, 2)?;
+            }
+            opcode::ST4 => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("ST {value}");
+                i = checked_add(i, 4)?;
+            }
+            opcode::GL1 => {
+                let value = fetch_u8(opcodes, i)?;
+                println!("GL {value}");
+                i = checked_add(i, 1)?;
+            }
+            opcode::GL2 => {
+                let value = fetch_u16(opcodes, i)?;
+                println!("GL {value}");
+                i = checked_add(i, 2)?;
+            }
+            opcode::GL4 => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("GL {value}");
+                i = checked_add(i, 4)?;
+            }
+            opcode::GS1 => {
+                let value = fetch_u8(opcodes, i)?;
+                println!("GS {value}");
+                i = checked_add(i, 1)?;
+            }
+            opcode::GS2 => {
+                let value = fetch_u16(opcodes, i)?;
+                println!("GS {value}");
+                i = checked_add(i, 2)?;
+            }
+            opcode::GS4 => {
+                let value = fetch_u32(opcodes, i)?;
+                println!("GS {value}");
+                i = checked_add(i, 4)?;
             }
             opcode::PTR => {
                 let value = fetch_u32(opcodes, i)?;
