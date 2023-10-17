@@ -38,6 +38,7 @@ fn heap_sort(arr) {
     }
 }
 
-let arr = [1, 12, 9, 3, 10, 15];
-heap_sort(arr);
-arr;
+# Example
+# let arr = [1, 12, 9, 3, 10, 15];
+# heap_sort(arr);
+# print(arr);

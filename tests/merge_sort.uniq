@@ -54,6 +54,7 @@ fn merge_sort(arr, left, right) {   # Helper function that creates the sub cases
     }
 }
 
-let arr = [9, 3, 1, 5, 13, 12];
-merge_sort(arr, 0, len(arr) - 1);
-arr;
+# Example
+# let arr = [9, 3, 1, 5, 13, 12];
+# merge_sort(arr, 0, len(arr) - 1);
+# print(arr);

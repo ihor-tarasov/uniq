@@ -64,8 +64,7 @@ pub fn fetch_f64(opcodes: &[u8], offset: u32) -> Res<f64> {
 }
 
 pub fn dump_opcodes(opcodes: &[u8]) -> Res {
-    println!("# Stack size: {}", fetch_u32(opcodes, 0)?);
-    let mut i = 4;
+    let mut i = 0;
     while i < checked_as(opcodes.len())? {
         print!("{i}|");
         let opcode = fetch_u8(opcodes, i)?;

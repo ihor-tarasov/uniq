@@ -120,36 +120,36 @@ impl Chunk {
         self.opcodes.extend([opcode::CALL, argc])
     }
 
-    pub fn store(&mut self, index: u32, is_local: bool) -> Res {
+    pub fn store(&mut self, index: u32, is_global: bool) -> Res {
         if index <= u8::MAX as u32 {
             self.opcodes.extend([
-                if is_local { opcode::ST1 } else { opcode::GS1 },
+                if is_global { opcode::GS1 } else { opcode::ST1 },
                 index as u8,
             ])
         } else if index <= 0xFFFF {
             self.opcodes
-                .push(if is_local { opcode::ST2 } else { opcode::GS2 })?;
+                .push(if is_global { opcode::GS2 } else { opcode::ST2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
             self.opcodes
-                .push(if is_local { opcode::ST4 } else { opcode::GS4 })?;
+                .push(if is_global { opcode::GS4 } else { opcode::ST4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
 
-    pub fn load(&mut self, index: u32, is_local: bool) -> Res {
+    pub fn load(&mut self, index: u32, is_global: bool) -> Res {
         if index <= u8::MAX as u32 {
             self.opcodes.extend([
-                if is_local { opcode::LD1 } else { opcode::GL1 },
+                if is_global { opcode::GL1 } else { opcode::LD1 },
                 index as u8,
             ])
         } else if index <= 0xFFFF {
             self.opcodes
-                .push(if is_local { opcode::LD2 } else { opcode::GL2 })?;
+                .push(if is_global { opcode::GL2 } else { opcode::LD2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
             self.opcodes
-                .push(if is_local { opcode::LD4 } else { opcode::GL4 })?;
+                .push(if is_global { opcode::GL4 } else { opcode::LD4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
@@ -180,10 +180,6 @@ impl Chunk {
         let stack_size_address = self.opcodes.len();
         self.opcodes.extend([0; 4])?;
         Ok(stack_size_address)
-    }
-
-    pub fn start_global(&mut self) -> Res {
-        self.opcodes.extend([0; 4])
     }
 
     pub fn write_u32_at(&mut self, address: u32, value: u32) {

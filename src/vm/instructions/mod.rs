@@ -142,10 +142,6 @@ impl<'a> State<'a> {
             println!("# RUNTIME DUMP");
         }
 
-        let stack_size = utils::fetch_u32(opcodes, 0)?;
-        self.stack_pointer = stack_size;
-        self.program_counter = utils::checked_add(self.program_counter, 4)?;
-
         while self.step(opcodes)? {
             if DUMP_STACK {
                 self.dump_stack();

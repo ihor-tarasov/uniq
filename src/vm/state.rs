@@ -9,10 +9,11 @@ pub struct State<'a> {
     pub(super) locals: u32,
     pub(super) message: Option<String>,
     pub(super) natives: &'a Natives,
+    pub(super) globals: Vec<Value>,
 }
 
 impl<'a> State<'a> {
-    pub fn new(start: u32, stack: &'a mut [Value], natives: &'a Natives) -> Self {
+    pub fn new(stack: &'a mut [Value], natives: &'a Natives) -> Self {
         assert!(
             stack.len() <= u32::MAX as usize,
             "Maximum stack length must be u32::MAX."
@@ -20,10 +21,11 @@ impl<'a> State<'a> {
         Self {
             stack,
             stack_pointer: 0,
-            program_counter: start,
+            program_counter: 0,
             locals: 0,
             message: None,
             natives,
+            globals: Vec::new(),
         }
     }
 

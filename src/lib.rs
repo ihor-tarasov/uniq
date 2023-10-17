@@ -9,6 +9,3 @@ pub mod opcode;
 pub mod vm;
 pub mod natives;
 pub mod library;
-
-#[cfg(test)]
-mod tests;

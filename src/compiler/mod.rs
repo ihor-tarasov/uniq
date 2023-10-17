@@ -11,7 +11,7 @@ pub use chunk::*;
 pub use error::*;
 pub use pos::*;
 
-use self::{function::Function, lexer::Lexer, token::Token};
+use self::{function::Function, lexer::Lexer, token::Token, block::Block};
 use crate::{natives::Natives, opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
@@ -34,8 +34,7 @@ pub struct Compiler<'a> {
     address_stack: Vec<u32>,
     source_id: usize,
     function: Function,
-    global: Function,
-    is_parsing_function: bool,
+    globals: Block,
     natives: &'a Natives,
     cycles_end_addresses: Vec<u32>,
     cycles_end_addresses_sizes: Vec<u32>,
@@ -67,8 +66,7 @@ impl<'a> Compiler<'a> {
             address_stack: Vec::new(),
             source_id,
             function: Function::new(),
-            global: Function::new(),
-            is_parsing_function: false,
+            globals: Block::new(),
             natives,
             cycles_end_addresses: Vec::new(),
             cycles_end_addresses_sizes: Vec::new(),
@@ -121,12 +119,12 @@ impl<'a> Compiler<'a> {
         self.lex(lexer) // Skip value.
     }
 
-    fn subexpression<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn subexpression<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '('.
-        self.expression(lexer)?;
+        self.expression(lexer, is_global)?;
         self.expect(Token::RightParen)?;
         self.lex(lexer) // Skip ')'.
     }
@@ -140,7 +138,7 @@ impl<'a> Compiler<'a> {
         match self.token {
             Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
-                self.expression(lexer)?;
+                self.expression(lexer, false)?;
                 self.expect(Token::Semicolon)?;
             }
         }
@@ -158,7 +156,7 @@ impl<'a> Compiler<'a> {
         match self.token {
             Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
-                self.expression(lexer)?;
+                self.expression(lexer, false)?;
                 self.expect(Token::Semicolon)?;
             }
         }
@@ -185,7 +183,7 @@ impl<'a> Compiler<'a> {
         match self.token {
             Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
-                self.expression(lexer)?;
+                self.expression(lexer, false)?;
                 self.expect(Token::Semicolon)?;
             }
         }
@@ -199,41 +197,31 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token, is_global: bool) -> Res
+    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> Res
     where
         R: std::io::Read,
     {
         let mut first_time = true;
-        let mut last_function = false;
         loop {
             if first_time {
                 first_time = false;
             } else {
-                if last_function {
-                    last_function = false;
-                } else {
-                    self.chunk.push(opcode::DROP)?;
-                }
+                self.chunk.push(opcode::DROP)?;
             }
 
-            if is_global && self.token == Token::Fn {
-                last_function = true;
-                self.function(lexer)?;
-            } else {
-                match self.token {
-                    Token::Return => self.return_stat(lexer)?,
-                    Token::Break => self.break_stat(lexer)?,
-                    Token::Continue => self.continue_stat(lexer)?,
-                    Token::If => self.if_stat(lexer)?,
-                    Token::While => self.while_stat(lexer)?,
-                    Token::For => self.for_stat(lexer)?,
-                    Token::LeftBrace => self.block(lexer)?,
-                    Token::Let => self.let_stat(lexer, true)?,
-                    _ => {
-                        self.expression(lexer)?;
-                        self.expect(Token::Semicolon)?;
-                        self.lex(lexer)?; // Skip ';'.
-                    }
+            match self.token {
+                Token::Return => self.return_stat(lexer)?,
+                Token::Break => self.break_stat(lexer)?,
+                Token::Continue => self.continue_stat(lexer)?,
+                Token::If => self.if_stat(lexer)?,
+                Token::While => self.while_stat(lexer)?,
+                Token::For => self.for_stat(lexer)?,
+                Token::LeftBrace => self.block(lexer)?,
+                Token::Let => self.let_stat(lexer, true, false)?,
+                _ => {
+                    self.expression(lexer, false)?;
+                    self.expect(Token::Semicolon)?;
+                    self.lex(lexer)?; // Skip ';'.
                 }
             }
 
@@ -249,7 +237,7 @@ impl<'a> Compiler<'a> {
     {
         self.enter_block();
         self.lex(lexer)?; // Skip '{'.
-        self.statements(lexer, Token::RightBrace, false)?;
+        self.statements(lexer, Token::RightBrace)?;
         self.lex(lexer)?; // Skip '}'.
         self.exit_block();
         Ok(())
@@ -262,7 +250,7 @@ impl<'a> Compiler<'a> {
         let mut address_stack_size: u32 = 0;
         loop {
             self.lex(lexer)?; // Skip 'if'.
-            self.expression(lexer)?; // Condition.
+            self.expression(lexer, false)?; // Condition.
 
             // JF to the next block.
             let next_jf_address = self.chunk.empty_address()?;
@@ -302,23 +290,11 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn find_local(&self, name: &[u8]) -> Option<u32> {
-        if self.is_parsing_function {
-            self.function.get(name)
-        } else {
-            None
-        }
-    }
-
-    fn find_global(&self, name: &[u8]) -> Option<u32> {
-        self.global.get(name)
-    }
-
     fn find_function(&self, name: &[u8]) -> Option<u32> {
         self.function_addresses.get(name).cloned()
     }
 
-    fn call<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn call<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -334,7 +310,7 @@ impl<'a> Compiler<'a> {
                 break;
             }
 
-            self.expression(lexer)?;
+            self.expression(lexer, is_global)?;
             arguments += 1;
 
             if self.token == Token::Comma {
@@ -347,27 +323,27 @@ impl<'a> Compiler<'a> {
         self.chunk.call(arguments as u8)
     }
 
-    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_local: bool) -> Res
+    fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '='.
-        self.expression(lexer)?;
-        self.chunk.store(index, is_local)
+        self.expression(lexer, is_global)?;
+        self.chunk.store(index, is_global)
     }
 
-    fn index<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn index<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '['.
-        self.expression(lexer)?;
+        self.expression(lexer, is_global)?;
         self.expect(Token::RightBracket)?;
         self.lex(lexer)?; // Skip ']'.
         match self.token {
             Token::Equal => {
                 self.lex(lexer)?; // Skip '='.
-                self.expression(lexer)?;
+                self.expression(lexer, is_global)?;
                 self.chunk.push(opcode::SET)
             }
             _ => self.chunk.push(opcode::GET),
@@ -378,51 +354,54 @@ impl<'a> Compiler<'a> {
         &mut self,
         lexer: &mut Lexer<R>,
         index: u32,
-        is_local: bool,
+        is_global: bool,
     ) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '++'.
-        self.chunk.load(index, is_local)?;
+        self.chunk.load(index, is_global)?;
         self.chunk.push(opcode::INC)?;
-        self.chunk.store(index, is_local)
+        self.chunk.store(index, is_global)
     }
 
     fn postfix_identifier_decrement<R>(
         &mut self,
         lexer: &mut Lexer<R>,
         index: u32,
-        is_local: bool,
+        is_global: bool,
     ) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '--'.
-        self.chunk.load(index, is_local)?;
+        self.chunk.load(index, is_global)?;
         self.chunk.push(opcode::DEC)?;
-        self.chunk.store(index, is_local)
+        self.chunk.store(index, is_global)
     }
 
-    fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn identifier<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
-        if let Some(index) = self.find_local(&self.buffer) {
+        if !is_global {
+            if let Some(index) = self.function.get(&self.buffer) {
+                self.lex(lexer)?; // Skip identifier.
+                return match self.token {
+                    Token::Equal => self.assign(lexer, index, false),
+                    Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
+                    Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
+                    _ => self.chunk.load(index, false),
+                };
+            }
+        }
+        if let Some(index) = self.globals.get(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
             match self.token {
                 Token::Equal => self.assign(lexer, index, true),
                 Token::PlusPlus => self.postfix_identifier_increment(lexer, index, true),
                 Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, true),
                 _ => self.chunk.load(index, true),
-            }
-        } else if let Some(index) = self.find_global(&self.buffer) {
-            self.lex(lexer)?; // Skip identifier.
-            match self.token {
-                Token::Equal => self.assign(lexer, index, false),
-                Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
-                Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
-                _ => self.chunk.load(index, false),
             }
         } else if let Some(address) = self.find_function(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
@@ -439,10 +418,17 @@ impl<'a> Compiler<'a> {
     }
 
     fn add_local(&mut self) -> u32 {
-        if self.is_parsing_function {
-            self.function.var(&self.buffer)
+        self.function.var(&self.buffer)
+    }
+
+    fn add_global(&mut self) -> u32 {
+        if let Some(id) = self.globals.get(&self.buffer) {
+            id
         } else {
-            self.global.var(&self.buffer)
+            let id = self.globals.len();
+            assert!(id < (u32::MAX as usize));
+            self.globals.var(&self.buffer, id as u32);
+            id as u32
         }
     }
 
@@ -461,18 +447,22 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>, expect_semicolon: bool) -> Res
+    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>, expect_semicolon: bool, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip 'let'.
         self.expect(Token::Identifier)?;
-        let local_id = self.add_local();
+        let id = if is_global {
+            self.add_global()
+        } else {
+            self.add_local()
+        };
         self.lex(lexer)?; // Skip vriable name.
         self.expect(Token::Equal)?;
         self.lex(lexer)?; // Skip '='.
-        self.expression(lexer)?;
-        self.chunk.store(local_id, self.is_parsing_function)?;
+        self.expression(lexer, is_global)?;
+        self.chunk.store(id, is_global)?;
         if expect_semicolon {
             self.expect(Token::Semicolon)?;
             self.lex(lexer) // Skip ';'.
@@ -482,19 +472,11 @@ impl<'a> Compiler<'a> {
     }
 
     fn enter_block(&mut self) {
-        if self.is_parsing_function {
-            self.function.push();
-        } else {
-            self.global.push();
-        }
+        self.function.push();
     }
 
     fn exit_block(&mut self) {
-        if self.is_parsing_function {
-            self.function.pop();
-        } else {
-            self.global.pop();
-        }
+        self.function.pop();
     }
 
     /*
@@ -522,7 +504,7 @@ impl<'a> Compiler<'a> {
 
     */
 
-    fn logic_and<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn logic_and<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -535,7 +517,7 @@ impl<'a> Compiler<'a> {
         address_count += 1;
 
         loop {
-            self.expression_without_logic(lexer)?;
+            self.expression_without_logic(lexer, is_global)?;
 
             let end_false_address = self.chunk.empty_address()?;
             self.address_stack.push(end_false_address);
@@ -595,7 +577,7 @@ impl<'a> Compiler<'a> {
 
     */
 
-    fn logic_or<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn logic_or<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -608,7 +590,7 @@ impl<'a> Compiler<'a> {
         address_count += 1;
 
         loop {
-            self.expression_without_logic(lexer)?;
+            self.expression_without_logic(lexer, is_global)?;
 
             let end_true_address = self.chunk.empty_address()?;
             self.address_stack.push(end_true_address);
@@ -651,7 +633,7 @@ impl<'a> Compiler<'a> {
         self.chunk.push(opcode::VOID)?;
         let while_start = self.chunk.len();
         // Condition.
-        self.expression(lexer)?;
+        self.expression(lexer, false)?;
         let end_jf_address = self.chunk.empty_address()?;
         self.chunk.push(opcode::DROP)?;
 
@@ -730,8 +712,8 @@ impl<'a> Compiler<'a> {
         self.expect(Token::Equal)?;
         self.lex(lexer)?; // Skip '='.
 
-        self.expression(lexer)?;
-        self.chunk.store(local_id, true)?;
+        self.expression(lexer, false)?;
+        self.chunk.store(local_id, false)?;
         self.chunk.push(opcode::DROP)?;
 
         self.expect(Token::Comma)?;
@@ -741,7 +723,7 @@ impl<'a> Compiler<'a> {
         let start = self.chunk.len();
 
         // Condition.
-        self.expression(lexer)?;
+        self.expression(lexer, false)?;
         let end_address = self.chunk.empty_address()?;
         self.chunk.push(opcode::DROP)?;
 
@@ -751,7 +733,7 @@ impl<'a> Compiler<'a> {
         self.expect(Token::Comma)?;
         self.lex(lexer)?; // Skip ','.
 
-        self.expression(lexer)?;
+        self.expression(lexer, false)?;
         self.chunk.push(opcode::DROP)?;
 
         let end_step_address = self.chunk.empty_address()?;
@@ -774,7 +756,7 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn list<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn list<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -782,7 +764,7 @@ impl<'a> Compiler<'a> {
         self.chunk.push(opcode::LIST)?;
 
         while self.token != Token::RightBracket {
-            self.expression(lexer)?;
+            self.expression(lexer, is_global)?;
             self.chunk.push(opcode::ADD)?;
             match self.token {
                 Token::RightBracket => break,
@@ -810,8 +792,6 @@ impl<'a> Compiler<'a> {
         self.expect(Token::LeftParen)?;
         self.lex(lexer)?; // Skip '('.
 
-        self.is_parsing_function = true;
-
         let mut args_count = 0;
         while self.token == Token::Identifier {
             if args_count > u8::MAX as u32 {
@@ -836,8 +816,6 @@ impl<'a> Compiler<'a> {
 
         self.chunk.push(opcode::RET)?;
 
-        self.is_parsing_function = false;
-
         self.chunk.write_u32_at(stack_size_address, self.function.stack_size() - args_count);
 
         self.function.clear();
@@ -856,13 +834,13 @@ impl<'a> Compiler<'a> {
             Token::Real => self.real(lexer),
             Token::True => self.boolean(lexer, true),
             Token::False => self.boolean(lexer, false),
-            Token::LeftParen => self.subexpression(lexer),
+            Token::LeftParen => self.subexpression(lexer, false),
             Token::LeftBrace => self.block(lexer),
             Token::If => self.if_stat(lexer),
-            Token::Let => self.let_stat(lexer, false),
-            Token::Identifier => self.identifier(lexer),
+            Token::Let => self.let_stat(lexer, false, false),
+            Token::Identifier => self.identifier(lexer, false),
             Token::While => self.while_stat(lexer),
-            Token::LeftBracket => self.list(lexer),
+            Token::LeftBracket => self.list(lexer, false),
             Token::For => self.for_stat(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
@@ -870,41 +848,63 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn secondary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn global_primary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        self.primary(lexer)?;
+        match self.token {
+            Token::Integer => self.integer(lexer),
+            Token::Real => self.real(lexer),
+            Token::True => self.boolean(lexer, true),
+            Token::False => self.boolean(lexer, false),
+            Token::LeftParen => self.subexpression(lexer, true),
+            Token::Identifier => self.identifier(lexer, true),
+            Token::LeftBracket => self.list(lexer, true),
+            Token::Unknown => raise!("Unknown token."),
+            Token::End => raise!("Unexpected end."),
+            _ => raise!("Unexpected token."),
+        }
+    }
+
+    fn secondary<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
+    where
+        R: std::io::Read,
+    {
+        if is_global {
+            self.global_primary(lexer)?;
+        } else {
+            self.primary(lexer)?;
+        }
 
         loop {
             match self.token {
-                Token::LeftParen => self.call(lexer)?,
-                Token::LeftBracket => self.index(lexer)?,
+                Token::LeftParen => self.call(lexer, is_global)?,
+                Token::LeftBracket => self.index(lexer, is_global)?,
                 _ => break Ok(()),
             }
         }
     }
 
-    fn unary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn unary<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         match self.token {
             Token::Exclamation => {
                 self.lex(lexer)?; // Skip '!'.
-                self.secondary(lexer)?;
+                self.secondary(lexer, is_global)?;
                 self.chunk.push(opcode::NOT)
             }
             Token::Minus => {
                 self.lex(lexer)?; // Skip '-'.
-                self.secondary(lexer)?;
+                self.secondary(lexer, is_global)?;
                 self.chunk.push(opcode::NEG)
             }
-            _ => self.secondary(lexer),
+            _ => self.secondary(lexer, is_global),
         }
     }
 
-    fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8) -> Res
+    fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -932,12 +932,12 @@ impl<'a> Compiler<'a> {
             let range = self.range.clone();
 
             self.lex(lexer)?;
-            self.unary(lexer)?;
+            self.unary(lexer, is_global)?;
 
             let next = get_precedence(self.token);
 
             if current < next {
-                self.binary(lexer, current + 1)?;
+                self.binary(lexer, current + 1, is_global)?;
             }
 
             self.chunk.push_pos(Pos {
@@ -949,23 +949,23 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn expression_without_logic<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn expression_without_logic<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
-        self.unary(lexer)?;
-        self.binary(lexer, 1)
+        self.unary(lexer, is_global)?;
+        self.binary(lexer, 1, is_global)
     }
 
-    fn expression<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn expression<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
-        self.expression_without_logic(lexer)?;
+        self.expression_without_logic(lexer, is_global)?;
 
         match self.token {
-            Token::And => self.logic_and(lexer),
-            Token::Or => self.logic_or(lexer),
+            Token::And => self.logic_and(lexer, is_global),
+            Token::Or => self.logic_or(lexer, is_global),
             _ => Ok(()),
         }
     }
@@ -974,9 +974,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
-        if self.chunk.len() == 0 {
-            self.chunk.start_global()?;
-        } else {
+        if self.chunk.len() != 0 {
             self.chunk.pop();
         }
 
@@ -984,17 +982,26 @@ impl<'a> Compiler<'a> {
         let mut lexer = Lexer::new(read)?;
         self.lex(&mut lexer)?;
 
-        self.is_parsing_function = false;
-
-        self.statements(&mut lexer, Token::End, true)?;
+        loop {
+            match self.token {
+                Token::End => break,
+                Token::Fn => self.function(&mut lexer)?,
+                Token::Let => {
+                    self.let_stat(&mut lexer, true, true)?;
+                    self.chunk.push(opcode::DROP)?;
+                }
+                _ => {
+                    self.expression(&mut lexer, true)?;
+                    self.expect(Token::Semicolon)?;
+                    self.lex(&mut lexer)?; // Skip ';'.
+                    self.chunk.push(opcode::DROP)?;
+                },
+            }
+        }
 
         self.chunk.push(opcode::RET)?;
 
         Ok(())
-    }
-
-    pub fn finish(&mut self) {
-        self.chunk.write_u32_at(0, self.global.stack_size());
     }
 
     pub fn chunk(&self) -> &Chunk {
@@ -1009,7 +1016,7 @@ impl<'a> Compiler<'a> {
         self.source_id
     }
 
-    pub fn len(&self) -> u32 {
-        self.chunk.len()
+    pub fn into_chunk(self) -> Chunk {
+        self.chunk
     }
 }

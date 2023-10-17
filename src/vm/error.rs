@@ -9,6 +9,7 @@ pub enum Error {
     DividingByZero,
     UnexpectedType,
     AddressOverflow,
+    FetchGlobal,
     Custom,
 }
 

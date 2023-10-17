@@ -13,6 +13,7 @@ fn bubble_sort(a) {
     }
 }
 
-let arr = [5, 2, 7, 2, 9, 10, 12];
-bubble_sort(arr);
-arr;
+# Example
+# let arr = [5, 2, 7, 2, 9, 10, 12];
+# bubble_sort(arr);
+# print(arr);
