@@ -15,7 +15,7 @@ pub enum Token {
     Continue, // 'continue'
     And, // 'and'
     Or, // 'or'
-    This, // 'this'
+    Fn, // 'fn'
     VerticalBar, // '|'
     Comma, // ','
     LeftParen, // '('
@@ -61,7 +61,7 @@ impl std::fmt::Display for Token {
             Token::Continue => write!(f, "'continue'"),
             Token::And => write!(f, "'and'"),
             Token::Or => write!(f, "'or'"),
-            Token::This => write!(f, "'this'"),
+            Token::Fn => write!(f, "'fn'"),
             Token::LeftBracket => write!(f, "'['"),
             Token::RightBracket => write!(f, "']'"),
             Token::VerticalBar => write!(f, "'|'"),

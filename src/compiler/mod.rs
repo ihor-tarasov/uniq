@@ -15,6 +15,17 @@ use self::{function::Function, lexer::Lexer, opcodes::Opcodes, token::Token};
 use crate::{natives::Natives, opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
+struct Slice<'a>(pub &'a [u8]);
+
+impl<'a> std::fmt::Display for Slice<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for c in self.0 {
+            write!(f, "{}", *c as char)?;
+        }
+        Ok(())
+    }
+}
+
 pub struct Compiler<'a> {
     token: Token,
     range: Range<usize>,
@@ -23,11 +34,14 @@ pub struct Compiler<'a> {
     buffer: Vec<u8>,
     address_stack: Vec<u32>,
     source_id: usize,
-    functions: Vec<Function>,
+    function: Function,
+    global: Function,
+    is_parsing_function: bool,
     natives: &'a Natives,
     cycles_end_addresses: Vec<u32>,
     cycles_end_addresses_sizes: Vec<u32>,
     cycles_starts: Vec<u32>,
+    function_addresses: HashMap<Box<[u8]>, u32>,
 }
 
 fn get_precedence(token: Token) -> u8 {
@@ -54,11 +68,14 @@ impl<'a> Compiler<'a> {
             buffer: Vec::new(),
             address_stack: Vec::new(),
             source_id,
-            functions: Vec::new(),
+            function: Function::new(),
+            global: Function::new(),
+            is_parsing_function: false,
             natives,
             cycles_end_addresses: Vec::new(),
             cycles_end_addresses_sizes: Vec::new(),
             cycles_starts: Vec::new(),
+            function_addresses: HashMap::new(),
         }
     }
 
@@ -197,9 +214,13 @@ impl<'a> Compiler<'a> {
 
         match self.token {
             Token::Semicolon => self.opcodes.push(opcode::VOID)?,
-            _ => self.expression(lexer)?,
+            _ => {
+                self.expression(lexer)?;
+                self.expect(Token::Semicolon)?;
+            }
         }
 
+        self.lex(lexer)?; // Skip ';'.
         self.opcodes.push(opcode::RET)
     }
 
@@ -211,8 +232,13 @@ impl<'a> Compiler<'a> {
 
         match self.token {
             Token::Semicolon => self.opcodes.push(opcode::VOID)?,
-            _ => self.expression(lexer)?,
+            _ => {
+                self.expression(lexer)?;
+                self.expect(Token::Semicolon)?;
+            }
         }
+        
+        self.lex(lexer)?; // Skip ';'.
 
         let address = self.opcodes.len();
         self.opcodes.extend([0; 5])?;
@@ -234,8 +260,13 @@ impl<'a> Compiler<'a> {
 
         match self.token {
             Token::Semicolon => self.opcodes.push(opcode::VOID)?,
-            _ => self.expression(lexer)?,
+            _ => {
+                self.expression(lexer)?;
+                self.expect(Token::Semicolon)?;
+            }
         }
+
+        self.lex(lexer)?; // Skip ';'.
 
         if let Some(cycle_start) = self.cycles_starts.last().cloned() {
             self.jump(cycle_start)
@@ -244,33 +275,42 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn statement<R>(&mut self, lexer: &mut Lexer<R>) -> Res
-    where
-        R: std::io::Read,
-    {
-        match self.token {
-            Token::Return => self.return_stat(lexer),
-            Token::Break => self.break_stat(lexer),
-            Token::Continue => self.continue_stat(lexer),
-            _ => self.expression(lexer),
-        }
-    }
-
-    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token) -> Res
+    fn statements<R>(&mut self, lexer: &mut Lexer<R>, until: Token, is_global: bool) -> Res
     where
         R: std::io::Read,
     {
         let mut first_time = true;
+        let mut last_function = false;
         loop {
             if first_time {
                 first_time = false;
             } else {
-                self.opcodes.push(opcode::DROP)?;
+                if last_function {
+                    last_function = false;
+                } else {
+                    self.opcodes.push(opcode::DROP)?;
+                }
             }
-            self.statement(lexer)?;
 
-            if self.token == Token::Semicolon {
-                self.lex(lexer)?; // Skip ';'
+            if is_global && self.token == Token::Fn {
+                last_function = true;
+                self.function(lexer)?;
+            } else {
+                match self.token {
+                    Token::Return => self.return_stat(lexer)?,
+                    Token::Break => self.break_stat(lexer)?,
+                    Token::Continue => self.continue_stat(lexer)?,
+                    Token::If => self.if_stat(lexer)?,
+                    Token::While => self.while_stat(lexer)?,
+                    Token::For => self.for_stat(lexer)?,
+                    Token::LeftBrace => self.block(lexer)?,
+                    Token::Let => self.let_stat(lexer, true)?,
+                    _ => {
+                        self.expression(lexer)?;
+                        self.expect(Token::Semicolon)?;
+                        self.lex(lexer)?; // Skip ';'.
+                    }
+                }
             }
 
             if self.token == until {
@@ -285,7 +325,7 @@ impl<'a> Compiler<'a> {
     {
         self.enter_block();
         self.lex(lexer)?; // Skip '{'.
-        self.statements(lexer, Token::RightBrace)?;
+        self.statements(lexer, Token::RightBrace, false)?;
         self.lex(lexer)?; // Skip '}'.
         self.exit_block();
         Ok(())
@@ -343,11 +383,19 @@ impl<'a> Compiler<'a> {
     }
 
     fn find_local(&self, name: &[u8]) -> Option<u32> {
-        self.functions.last().unwrap().get(name)
+        if self.is_parsing_function {
+            self.function.get(name)
+        } else {
+            None
+        }
     }
 
     fn find_global(&self, name: &[u8]) -> Option<u32> {
-        self.functions.first().unwrap().get(name)
+        self.global.get(name)
+    }
+
+    fn find_function(&self, name: &[u8]) -> Option<u32> {
+        self.function_addresses.get(name).cloned()
     }
 
     fn call<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -490,6 +538,10 @@ impl<'a> Compiler<'a> {
                 Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
                 _ => self.load(index, false),
             }
+        } else if let Some(address) = self.find_function(&self.buffer) {
+            self.lex(lexer)?; // Skip identifier.
+            self.opcodes.push(opcode::PTR)?;
+            self.opcodes.extend(address.to_be_bytes())
         } else if let Some(index) = self.natives.get_index(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
             self.opcodes.push(opcode::NAT)?;
@@ -503,10 +555,29 @@ impl<'a> Compiler<'a> {
     }
 
     fn add_local(&mut self) -> u32 {
-        self.functions.last_mut().unwrap().var(&self.buffer)
+        if self.is_parsing_function {
+            self.function.var(&self.buffer)
+        } else {
+            self.global.var(&self.buffer)
+        }
     }
 
-    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    fn add_function(&mut self, address: u32) -> Res {
+        if self
+            .function_addresses
+            .insert(
+                self.buffer.as_slice().to_owned().into_boxed_slice(),
+                address,
+            )
+            .is_some()
+        {
+            raise!("Function \"{}\" already exists.", Slice(&self.buffer))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn let_stat<R>(&mut self, lexer: &mut Lexer<R>, expect_semicolon: bool) -> Res
     where
         R: std::io::Read,
     {
@@ -517,15 +588,29 @@ impl<'a> Compiler<'a> {
         self.expect(Token::Equal)?;
         self.lex(lexer)?; // Skip '='.
         self.expression(lexer)?;
-        self.store(local_id, true)
+        self.store(local_id, self.is_parsing_function)?;
+        if expect_semicolon {
+            self.expect(Token::Semicolon)?;
+            self.lex(lexer) // Skip ';'.
+        } else {
+            Ok(())
+        }
     }
 
     fn enter_block(&mut self) {
-        self.functions.last_mut().unwrap().push();
+        if self.is_parsing_function {
+            self.function.push();
+        } else {
+            self.global.push();
+        }
     }
 
     fn exit_block(&mut self) {
-        self.functions.last_mut().unwrap().pop();
+        if self.is_parsing_function {
+            self.function.pop();
+        } else {
+            self.global.pop();
+        }
     }
 
     fn jump(&mut self, address: u32) -> Res {
@@ -703,8 +788,8 @@ impl<'a> Compiler<'a> {
         let end_jf_address = self.opcodes.len();
         self.opcodes.extend([0; 5])?;
         self.opcodes.push(opcode::DROP)?;
-        // Block.
 
+        // Block.
         self.cycles_starts.push(while_start);
         self.cycles_end_addresses_sizes.push(0);
 
@@ -783,9 +868,8 @@ impl<'a> Compiler<'a> {
         self.store(local_id, true)?;
         self.opcodes.push(opcode::DROP)?;
 
-        if self.token == Token::Comma {
-            self.lex(lexer)?; // Skip ','
-        }
+        self.expect(Token::Comma)?;
+        self.lex(lexer)?; // Skip ','.
 
         self.opcodes.push(opcode::VOID)?;
         let start = self.opcodes.len();
@@ -800,9 +884,8 @@ impl<'a> Compiler<'a> {
         self.opcodes.extend([0; 5])?;
         let step = self.opcodes.len();
 
-        if self.token == Token::Comma {
-            self.lex(lexer)?; // Skip ','
-        }
+        self.expect(Token::Comma)?;
+        self.lex(lexer)?; // Skip ','.
 
         self.expression(lexer)?;
         self.opcodes.push(opcode::DROP)?;
@@ -838,38 +921,34 @@ impl<'a> Compiler<'a> {
         while self.token != Token::RightBracket {
             self.expression(lexer)?;
             self.opcodes.push(opcode::ADD)?;
-            if self.token == Token::Comma {
-                self.lex(lexer)?; // Skip ','.
+            match self.token {
+                Token::RightBracket => break,
+                Token::Comma => {
+                    self.lex(lexer)?; // Skip ','.
+                }
+                _ => return raise!("Expected ',' or ']', found {}", self.token),
             }
         }
 
         self.lex(lexer) // Skip ']'
     }
 
-    fn this<R>(&mut self, lexer: &mut Lexer<R>) -> Res
-    where
-        R: std::io::Read,
-    {
-        self.lex(lexer)?; // Skip 'this'.
-        self.opcodes.push(opcode::PTR)?;
-        if let Some(address) = self.functions.last().unwrap().address() {
-            self.opcodes.extend(address.to_be_bytes())
-        } else {
-            raise!("Using 'this' outside a function")
-        }
-    }
-
     fn function<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        self.lex(lexer)?; // Skip '|'.
+        self.lex(lexer)?; // Skip 'fn'.
 
         let end_jp_address = self.opcodes.len();
         self.opcodes.extend([0; 5])?;
 
-        let function_address = self.opcodes.len();
-        self.functions.push(Function::new(Some(function_address)));
+        self.expect(Token::Identifier)?;
+        self.add_function(self.opcodes.len())?;
+        self.lex(lexer)?; // Skip function name.
+        self.expect(Token::LeftParen)?;
+        self.lex(lexer)?; // Skip '('.
+
+        self.is_parsing_function = true;
 
         let mut args_count = 0;
         while self.token == Token::Identifier {
@@ -885,8 +964,8 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        self.expect(Token::VerticalBar)?;
-        self.lex(lexer)?; // Skip '|'.
+        self.expect(Token::RightParen)?;
+        self.lex(lexer)?; // Skip ')'.
 
         self.opcodes.push(args_count as u8)?;
         let stack_size_address = self.opcodes.len();
@@ -897,19 +976,18 @@ impl<'a> Compiler<'a> {
 
         self.opcodes.push(opcode::RET)?;
 
-        let function = self.functions.pop().unwrap();
+        self.is_parsing_function = false;
 
-        (function.stack_size() - args_count)
+        (self.function.stack_size() - args_count)
             .to_be_bytes()
             .iter()
             .cloned()
             .enumerate()
             .for_each(|(i, b)| self.opcodes[stack_size_address + i as u32] = b);
 
-        self.set_jp(end_jp_address, self.opcodes.len());
+        self.function.clear();
 
-        self.opcodes.push(opcode::PTR)?;
-        self.opcodes.extend(function_address.to_be_bytes())?;
+        self.set_jp(end_jp_address, self.opcodes.len());
 
         Ok(())
     }
@@ -926,13 +1004,11 @@ impl<'a> Compiler<'a> {
             Token::LeftParen => self.subexpression(lexer),
             Token::LeftBrace => self.block(lexer),
             Token::If => self.if_stat(lexer),
-            Token::Let => self.let_stat(lexer),
+            Token::Let => self.let_stat(lexer, false),
             Token::Identifier => self.identifier(lexer),
             Token::While => self.while_stat(lexer),
             Token::LeftBracket => self.list(lexer),
-            Token::VerticalBar => self.function(lexer),
             Token::For => self.for_stat(lexer),
-            Token::This => self.this(lexer),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),
@@ -1053,14 +1129,13 @@ impl<'a> Compiler<'a> {
         let stack_size_address = self.opcodes.len();
         self.opcodes.extend([0; 4])?;
 
-        self.functions.push(Function::new(None));
+        self.is_parsing_function = false;
 
-        self.statements(&mut lexer, Token::End)?;
+        self.statements(&mut lexer, Token::End, true)?;
 
         self.opcodes.push(opcode::RET)?;
-        let function = self.functions.pop().unwrap();
 
-        function
+        self.global
             .stack_size()
             .to_be_bytes()
             .iter()

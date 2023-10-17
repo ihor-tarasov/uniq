@@ -162,7 +162,7 @@ where
             b"continue" => Token::Continue,
             b"and" => Token::And,
             b"or" => Token::Or,
-            b"this" => Token::This,
+            b"fn" => Token::Fn,
             _ => Token::Identifier,
         })
     }

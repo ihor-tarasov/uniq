@@ -4,16 +4,14 @@ pub struct Function {
     blocks: Vec<Block>,
     local_counter: u32,
     stack_size: u32,
-    address: Option<u32>,
 }
 
 impl Function {
-    pub fn new(address: Option<u32>) -> Self {
+    pub fn new() -> Self {
         Self {
             blocks: vec![Block::new()],
             local_counter: 0,
             stack_size: 0,
-            address,
         }
     }
 
@@ -52,7 +50,10 @@ impl Function {
         self.stack_size
     }
 
-    pub fn address(&self) -> Option<u32> {
-        self.address
+    pub fn clear(&mut self) {
+        self.blocks.clear();
+        self.blocks.push(Block::new());
+        self.local_counter = 0;
+        self.stack_size = 0;
     }
 }

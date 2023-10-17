@@ -1,4 +1,4 @@
-let merge = |arr, left, middle, right| {
+fn merge(arr, left, middle, right) {
     let low = middle - left + 1;        # Size of the left subarray
     let high = right - middle;          # Size of the right subarray
 
@@ -42,13 +42,13 @@ let merge = |arr, left, middle, right| {
     }
 }
 
-let merge_sort = |arr, left, right| {   # Helper function that creates the sub cases for sorting
+fn merge_sort(arr, left, right) {   # Helper function that creates the sub cases for sorting
     let middle = 0;
     if left < right {                   # Sort only if the left index is lesser than the right index (meaning that sorting is done)
         middle = (left + right) / 2;
 
-        this(arr, left, middle);        # Left subarray
-        this(arr, middle + 1, right);   # Right subarray
+        merge_sort(arr, left, middle);        # Left subarray
+        merge_sort(arr, middle + 1, right);   # Right subarray
 
         merge(arr, left, middle, right);# Merge the two subarrays
     }
@@ -56,4 +56,4 @@ let merge_sort = |arr, left, right| {   # Helper function that creates the sub c
 
 let arr = [9, 3, 1, 5, 13, 12];
 merge_sort(arr, 0, len(arr) - 1);
-arr
+arr;

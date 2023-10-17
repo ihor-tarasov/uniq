@@ -1,4 +1,4 @@
-let bubble_sort = |a| {
+fn bubble_sort(a) {
     let sorted = false;
     while !sorted {
         sorted = true;
@@ -15,4 +15,4 @@ let bubble_sort = |a| {
 
 let arr = [5, 2, 7, 2, 9, 10, 12];
 bubble_sort(arr);
-arr
+arr;
