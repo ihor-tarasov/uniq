@@ -6,12 +6,13 @@ mod lexer;
 mod opcodes;
 mod pos;
 mod token;
+mod cycles;
 
 pub use chunk::*;
 pub use error::*;
 pub use pos::*;
 
-use self::{function::Function, lexer::Lexer, token::Token, block::Block};
+use self::{function::Function, lexer::Lexer, token::Token, block::Block, cycles::Cycles};
 use crate::{natives::Natives, opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
@@ -36,9 +37,7 @@ pub struct Compiler<'a> {
     function: Function,
     globals: Block,
     natives: &'a Natives,
-    cycles_end_addresses: Vec<u32>,
-    cycles_end_addresses_sizes: Vec<u32>,
-    cycles_starts: Vec<u32>,
+    cycles: Cycles,
     function_addresses: HashMap<Box<[u8]>, u32>,
 }
 
@@ -68,9 +67,7 @@ impl<'a> Compiler<'a> {
             function: Function::new(),
             globals: Block::new(),
             natives,
-            cycles_end_addresses: Vec::new(),
-            cycles_end_addresses_sizes: Vec::new(),
-            cycles_starts: Vec::new(),
+            cycles: Cycles::new(),
             function_addresses: HashMap::new(),
         }
     }
@@ -165,9 +162,7 @@ impl<'a> Compiler<'a> {
 
         let address = self.chunk.empty_address()?;
 
-        if let Some(cycle_address_size) = self.cycles_end_addresses_sizes.last_mut() {
-            *cycle_address_size += 1;
-            self.cycles_end_addresses.push(address);
+        if self.cycles.push_end(address) {
             Ok(())
         } else {
             raise!("Unable to use 'break' statement in this place.")
@@ -190,7 +185,7 @@ impl<'a> Compiler<'a> {
 
         self.lex(lexer)?; // Skip ';'.
 
-        if let Some(cycle_start) = self.cycles_starts.last().cloned() {
+        if let Some(cycle_start) = self.cycles.start() {
             self.chunk.jump(cycle_start)
         } else {
             raise!("Unable to use 'continue' statement in this place.")
@@ -638,18 +633,16 @@ impl<'a> Compiler<'a> {
         self.chunk.push(opcode::DROP)?;
 
         // Block.
-        self.cycles_starts.push(while_start);
-        self.cycles_end_addresses_sizes.push(0);
+        self.cycles.push_start(while_start);
 
         self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
         self.chunk.jump(while_start)?;
 
-        self.cycles_starts.pop().unwrap();
-        let ends_size = self.cycles_end_addresses_sizes.pop().unwrap();
+        let ends_size = self.cycles.pop_start();
 
         for _ in 0..ends_size {
-            let address = self.cycles_end_addresses.pop().unwrap();
+            let address = self.cycles.pop_end();
             self.chunk.set_jp(address, self.chunk.len());
         }
 
