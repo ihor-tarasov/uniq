@@ -2,17 +2,17 @@ mod block;
 mod chunk;
 mod error;
 mod function;
+mod lexer;
 mod opcodes;
 mod pos;
-mod lexer;
 mod token;
 
 pub use chunk::*;
 pub use error::*;
 pub use pos::*;
 
-use self::{function::Function, opcodes::Opcodes, lexer::Lexer, token::Token};
-use crate::{opcode, raise, natives::Natives};
+use self::{function::Function, lexer::Lexer, opcodes::Opcodes, token::Token};
+use crate::{natives::Natives, opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
 pub struct Compiler<'a> {
@@ -381,12 +381,17 @@ impl<'a> Compiler<'a> {
 
     fn store(&mut self, index: u32, is_local: bool) -> Res {
         if index <= u8::MAX as u32 {
-            self.opcodes.extend([if is_local { opcode::ST1 } else { opcode::GS1 }, index as u8])
+            self.opcodes.extend([
+                if is_local { opcode::ST1 } else { opcode::GS1 },
+                index as u8,
+            ])
         } else if index <= 0xFFFF {
-            self.opcodes.push(if is_local { opcode::ST2 } else { opcode::GS2 })?;
+            self.opcodes
+                .push(if is_local { opcode::ST2 } else { opcode::GS2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
-            self.opcodes.push(if is_local { opcode::ST4 } else { opcode::GS4 })?;
+            self.opcodes
+                .push(if is_local { opcode::ST4 } else { opcode::GS4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
@@ -402,12 +407,17 @@ impl<'a> Compiler<'a> {
 
     fn load(&mut self, index: u32, is_local: bool) -> Res {
         if index <= u8::MAX as u32 {
-            self.opcodes.extend([if is_local { opcode::LD1 } else { opcode::GL1 }, index as u8])
+            self.opcodes.extend([
+                if is_local { opcode::LD1 } else { opcode::GL1 },
+                index as u8,
+            ])
         } else if index <= 0xFFFF {
-            self.opcodes.push(if is_local { opcode::LD2 } else { opcode::GL2 })?;
+            self.opcodes
+                .push(if is_local { opcode::LD2 } else { opcode::GL2 })?;
             self.opcodes.extend((index as u16).to_be_bytes())
         } else {
-            self.opcodes.push(if is_local { opcode::LD4 } else { opcode::GL4 })?;
+            self.opcodes
+                .push(if is_local { opcode::LD4 } else { opcode::GL4 })?;
             self.opcodes.extend(index.to_le_bytes())
         }
     }
@@ -430,13 +440,33 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn postfix_identifier_increment<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_local: bool) -> Res
+    fn postfix_identifier_increment<R>(
+        &mut self,
+        lexer: &mut Lexer<R>,
+        index: u32,
+        is_local: bool,
+    ) -> Res
     where
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '++'.
         self.load(index, is_local)?;
         self.opcodes.push(opcode::INC)?;
+        self.store(index, is_local)
+    }
+
+    fn postfix_identifier_decrement<R>(
+        &mut self,
+        lexer: &mut Lexer<R>,
+        index: u32,
+        is_local: bool,
+    ) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '--'.
+        self.load(index, is_local)?;
+        self.opcodes.push(opcode::DEC)?;
         self.store(index, is_local)
     }
 
@@ -449,6 +479,7 @@ impl<'a> Compiler<'a> {
             match self.token {
                 Token::Equal => self.assign(lexer, index, true),
                 Token::PlusPlus => self.postfix_identifier_increment(lexer, index, true),
+                Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, true),
                 _ => self.load(index, true),
             }
         } else if let Some(index) = self.find_global(&self.buffer) {
@@ -456,6 +487,7 @@ impl<'a> Compiler<'a> {
             match self.token {
                 Token::Equal => self.assign(lexer, index, false),
                 Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
+                Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
                 _ => self.load(index, false),
             }
         } else if let Some(index) = self.natives.get_index(&self.buffer) {
@@ -508,7 +540,7 @@ impl<'a> Compiler<'a> {
     }
 
     /*
-    
+
     2 == 0 and 3 == 2
 
         INT 2
@@ -537,7 +569,7 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip 'and'.
-        
+
         let mut address_count = 0;
 
         let end_false_address = self.opcodes.len();
@@ -584,7 +616,7 @@ impl<'a> Compiler<'a> {
     }
 
     /*
-    
+
     2 == 0 or 3 == 2
 
         INT 2
@@ -613,7 +645,7 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip 'and'.
-        
+
         let mut address_count = 0;
 
         let end_true_address = self.opcodes.len();
@@ -693,7 +725,7 @@ impl<'a> Compiler<'a> {
     }
 
     /*
-    
+
     for i = 0, i < 10, i = i + 1 {
         print(i);
     }
@@ -702,7 +734,7 @@ impl<'a> Compiler<'a> {
         INT 0
         ST i
         DROP
-    
+
         VOID ; If 0 iterations
     start:
         ; i < 10
@@ -726,7 +758,7 @@ impl<'a> Compiler<'a> {
         NAT print
         LD i
         CALL 1
-        
+
         JP step
     end_step:
         JP for_start
@@ -922,6 +954,25 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn unary<R>(&mut self, lexer: &mut Lexer<R>) -> Res
+    where
+        R: std::io::Read,
+    {
+        match self.token {
+            Token::Exclamation => {
+                self.lex(lexer)?; // Skip '!'.
+                self.secondary(lexer)?;
+                self.opcodes.push(opcode::NOT)
+            }
+            Token::Minus => {
+                self.lex(lexer)?; // Skip '-'.
+                self.secondary(lexer)?;
+                self.opcodes.push(opcode::NEG)
+            }
+            _ => self.secondary(lexer),
+        }
+    }
+
     fn binary<R>(&mut self, lexer: &mut Lexer<R>, precedence: u8) -> Res
     where
         R: std::io::Read,
@@ -950,7 +1001,7 @@ impl<'a> Compiler<'a> {
             let range = self.range.clone();
 
             self.lex(lexer)?;
-            self.secondary(lexer)?;
+            self.unary(lexer)?;
 
             let next = get_precedence(self.token);
 
@@ -974,7 +1025,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
-        self.secondary(lexer)?;
+        self.unary(lexer)?;
         self.binary(lexer, 1)
     }
 
@@ -987,7 +1038,7 @@ impl<'a> Compiler<'a> {
         match self.token {
             Token::And => self.logic_and(lexer),
             Token::Or => self.logic_or(lexer),
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 

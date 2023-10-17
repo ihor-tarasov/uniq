@@ -127,6 +127,18 @@ where
         }
     }
 
+    fn double_minus(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'-' => self.single(Token::MinusMinus),
+                _ => Ok(Token::Minus)
+            }
+        } else {
+            Ok(Token::Minus)
+        }
+    }
+
     fn identifier(&mut self, buf: &mut Vec<u8>) -> std::io::Result<Token> {
         buf.clear();
         while let Some(c) = self.current {
@@ -159,7 +171,7 @@ where
         if let Some(c) = self.current {
             match c {
                 b'+' => self.double_plus(),
-                b'-' => self.single(Token::Minus),
+                b'-' => self.double_minus(),
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
                 b'(' => self.single(Token::LeftParen),

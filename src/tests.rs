@@ -139,6 +139,14 @@ fn for_tests() {
 }
 
 #[test]
+fn factorial_test() {
+    eval(
+        "|n| { if n <= 1 { 1 } else { n * this(n - 1) } } (6)",
+        Value::Integer(720),
+    );
+}
+
+#[test]
 fn merge_sort() {
     eval_file(
         "tests/merge_sort.uniq",
@@ -149,6 +157,37 @@ fn merge_sort() {
             Value::Integer(9),
             Value::Integer(12),
             Value::Integer(13),
+        ]))),
+    )
+}
+
+#[test]
+fn heap_sort() {
+    eval_file(
+        "tests/heap_sort.uniq",
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(1),
+            Value::Integer(3),
+            Value::Integer(9),
+            Value::Integer(10),
+            Value::Integer(12),
+            Value::Integer(15),
+        ]))),
+    )
+}
+
+#[test]
+fn bubble_sort() {
+    eval_file(
+        "tests/bubble_sort.uniq",
+        Value::List(Rc::new(RefCell::new(vec![
+            Value::Integer(2),
+            Value::Integer(2),
+            Value::Integer(5),
+            Value::Integer(7),
+            Value::Integer(9),
+            Value::Integer(10),
+            Value::Integer(12),
         ]))),
     )
 }

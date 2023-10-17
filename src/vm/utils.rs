@@ -105,6 +105,9 @@ pub fn dump_opcodes(opcodes: &[u8]) -> Res {
             opcode::LE => println!("LE"),
             opcode::GE => println!("GE"),
             opcode::INC => println!("INC"),
+            opcode::DEC => println!("DEC"),
+            opcode::NOT => println!("NOT"),
+            opcode::NEG => println!("NEG"),
             opcode::JP2 => {
                 let value = fetch_u16(opcodes, i)?;
                 println!("JP {value}");

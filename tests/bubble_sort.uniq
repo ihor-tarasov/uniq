@@ -1,0 +1,18 @@
+let bubble_sort = |a| {
+    let sorted = false;
+    while !sorted {
+        sorted = true;
+        for i = 0, i < len(a) - 1, i++ {
+            if a[i] > a[i + 1] {
+                let temp = a[i];
+                a[i] = a[i + 1];
+                a[i + 1] = temp;
+                sorted = false;
+            }
+        }
+    }
+}
+
+let arr = [5, 2, 7, 2, 9, 10, 12];
+bubble_sort(arr);
+arr

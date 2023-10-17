@@ -118,6 +118,7 @@ impl<'a> State<'a> {
             opcode::PTR => self.ptr(opcodes),
             opcode::NAT => self.nat(opcodes),
             opcode::INC => self.unary(Self::inc),
+            opcode::DEC => self.unary(Self::dec),
             opcode::JT2 => self.jt2(opcodes),
             opcode::JT4 => self.jt4(opcodes),
             opcode::GL1 => self.gl1(opcodes),
@@ -126,6 +127,8 @@ impl<'a> State<'a> {
             opcode::GS1 => self.gs1(opcodes),
             opcode::GS2 => self.gs2(opcodes),
             opcode::GS4 => self.gs4(opcodes),
+            opcode::NEG => self.unary(Self::neg),
+            opcode::NOT => self.unary(Self::not),
             _ => Err(Error::UnknownOpcode),
         }
     }

@@ -83,4 +83,40 @@ impl<'a> State<'a> {
             }
         }
     }
+
+    pub(super) fn dec(&mut self, value: Value) -> Res<Value> {
+        dumpln!("DEC");
+        match value.clone() {
+            Value::Integer(value) => Ok(Value::Integer(value.wrapping_sub(1))),
+            Value::Real(value) => Ok(Value::Real(value - 1.0)),
+            _ => {
+                self.message = Some(format!("Unable to decrement {value} value."));
+                Err(Error::UnaryOperation)
+            }
+        }
+    }
+
+    pub(super) fn neg(&mut self, value: Value) -> Res<Value> {
+        dumpln!("NEG");
+        match value.clone() {
+            Value::Integer(value) => Ok(Value::Integer(value.wrapping_neg())),
+            Value::Real(value) => Ok(Value::Real(-value)),
+            _ => {
+                self.message = Some(format!("Unable to negate {value} value."));
+                Err(Error::UnaryOperation)
+            }
+        }
+    }
+
+    pub(super) fn not(&mut self, value: Value) -> Res<Value> {
+        dumpln!("NOT");
+        match value.clone() {
+            Value::Boolean(value) => Ok(Value::Boolean(!value)),
+            Value::Integer(value) => Ok(Value::Integer(!value)),
+            _ => {
+                self.message = Some(format!("Unable to perform 'not' operator for {value} value."));
+                Err(Error::UnaryOperation)
+            }
+        }
+    }
 }

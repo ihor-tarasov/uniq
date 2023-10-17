@@ -32,6 +32,7 @@ pub enum Token {
     Equal, // '='
     Exclamation, // '!'
     PlusPlus, // '++'
+    MinusMinus, // '--'
     ExclamationEqual, // '!='
     EqualEqual, // '=='
     Less, // '<'
@@ -77,6 +78,7 @@ impl std::fmt::Display for Token {
             Token::Equal => write!(f, "'='"),
             Token::Exclamation => write!(f, "'!'"),
             Token::PlusPlus => write!(f, "'++'"),
+            Token::MinusMinus => write!(f, "'--'"),
             Token::ExclamationEqual => write!(f, "'!='"),
             Token::EqualEqual => write!(f, "'=='"),
             Token::Less => write!(f, "'<'"),
