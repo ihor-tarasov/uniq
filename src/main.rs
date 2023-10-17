@@ -1,6 +1,6 @@
 use std::io::{BufReader, Write};
 
-use uniq::{library, natives::Natives, utils};
+use uniq::{library, natives::Natives, utils, compiler::Compiler};
 
 fn repl(natives: &Natives) {
     let mut code = String::new();
@@ -27,10 +27,14 @@ fn run_file(path: &str, natives: &Natives) {
     match std::fs::File::open(path) {
         Ok(file) => {
             let mut read = BufReader::new(file);
-            match utils::compile(path, &mut read, natives) {
-                Ok(chunk) => match utils::run(&[path], &mut read, &chunk, natives) {
-                    Ok(value) => println!("{value}"),
-                    Err(error) => eprintln!("{error}"),
+            let mut compiler = Compiler::new(0, natives);
+            match utils::compile(&mut compiler, path, &mut read) {
+                Ok(_) => {
+                    compiler.finish();
+                    match utils::run(0, &[path], &mut read, compiler.chunk(), natives) {
+                        Ok(value) => println!("{value}"),
+                        Err(error) => eprintln!("{error}"),
+                    }
                 },
                 Err(error) => eprintln!("{error}"),
             }

@@ -151,6 +151,10 @@ impl<'a> State<'a> {
                 self.dump_stack();
             }
         }
-        self.pop()
+        if self.stack_pointer == 0 {
+            Ok(Value::Void)
+        } else {
+            self.pop()
+        }
     }
 }

@@ -1,4 +1,10 @@
-use crate::{line, SliceRead, compiler::{Chunk, Compiler}, vm::{Value, State}, natives::Natives};
+use crate::{
+    compiler::{Chunk, Compiler},
+    line,
+    natives::Natives,
+    vm::{State, Value},
+    SliceRead,
+};
 use std::{fmt::Write, ops::Range};
 
 pub fn range_info<R>(path: &str, read: &mut R, range: Range<usize>) -> String
@@ -14,13 +20,12 @@ where
     buffer
 }
 
-pub fn compile<R>(path: &str, read: &mut R, natives: &Natives) -> Result<Chunk, String>
+pub fn compile<'a, R>(compiler: &'a mut Compiler, path: &str, read: &mut R) -> Result<(), String>
 where
     R: std::io::Read + std::io::Seek,
 {
-    let mut compiler = Compiler::new(0, natives);
     match compiler.compile(0, read) {
-        Ok(_) => Ok(compiler.into_chunk()),
+        Ok(_) => Ok(()),
         Err(error) => {
             let mut buffer = range_info(path, read, compiler.range());
             writeln!(buffer, "Compile error: {error}").unwrap();
@@ -29,13 +34,16 @@ where
     }
 }
 
-pub fn compile_eof<R>(path: &str, read: &mut R, natives: &Natives) -> Result<Chunk, Option<String>>
+pub fn compile_eof<R>(
+    compiler: &mut Compiler,
+    path: &str,
+    read: &mut R,
+) -> Result<(), Option<String>>
 where
     R: std::io::Read + std::io::Seek,
 {
-    let mut compiler = Compiler::new(0, natives);
     match compiler.compile(0, read) {
-        Ok(_) => Ok(compiler.into_chunk()),
+        Ok(_) => Ok(()),
         Err(error) => {
             let range = compiler.range();
             if range.start == range.end {
@@ -49,16 +57,22 @@ where
     }
 }
 
-pub fn run<R>(paths: &[&str], read: &mut R, chunk: &Chunk, natives: &Natives) -> Result<Value, String>
+pub fn run<R>(
+    start: u32,
+    paths: &[&str],
+    read: &mut R,
+    chunk: &Chunk,
+    natives: &Natives,
+) -> Result<Value, String>
 where
     R: std::io::Read + std::io::Seek,
 {
     let mut stack: [Value; 256] = std::array::from_fn(|_| Value::Void);
-    let mut state = State::new(&mut stack, natives);
-    match state.run(&chunk.opcodes) {
+    let mut state = State::new(start, &mut stack, natives);
+    match state.run(chunk.opcodes()) {
         Ok(value) => Ok(value),
         Err(error) => {
-            if let Some(pos) = chunk.ranges.get(&state.program_counter()) {
+            if let Some(pos) = chunk.pos(state.program_counter()) {
                 let mut buffer = range_info(paths[pos.source_id], read, pos.range.clone());
                 if let Some(message) = state.message() {
                     writeln!(buffer, "Runtime error: {message}").unwrap();
@@ -84,11 +98,15 @@ where
     T: Into<SliceRead<'a>>,
 {
     let mut read = code.into();
-    match compile("stdin", &mut read, natives) {
-        Ok(chunk) => match run(&["stdin"], &mut read, &chunk, natives) {
-            Ok(value) => println!("{value}"),
-            Err(error) => eprintln!("{error}"),
-        },
+    let mut compiler = Compiler::new(0, natives);
+    match compile(&mut compiler, "stdin", &mut read) {
+        Ok(_) => {
+            compiler.finish();
+            match run(0, &["stdin"], &mut read, compiler.chunk(), natives) {
+                Ok(value) => println!("{value}"),
+                Err(error) => eprintln!("{error}"),
+            }
+        }
         Err(error) => eprintln!("{error}"),
     }
 }
@@ -98,22 +116,28 @@ where
     T: Into<SliceRead<'a>>,
 {
     let mut read = code.into();
-    match compile_eof("stdin", &mut read, natives) {
-        Ok(chunk) => match run(&["stdin"], &mut read, &chunk, natives) {
-            Ok(value) => {
-                println!("{value}");
-                false
-            },
-            Err(error) => {
+    let mut compiler = Compiler::new(0, natives);
+    match compile_eof(&mut compiler, "stdin", &mut read) {
+        Ok(_) => {
+            compiler.finish();
+            match run(0, &["stdin"], &mut read, compiler.chunk(), natives) {
+                Ok(value) => {
+                    println!("{value}");
+                    false
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    false
+                }
+            }
+        }
+        Err(error) => {
+            if let Some(error) = error {
                 eprintln!("{error}");
                 false
+            } else {
+                true
             }
-        },
-        Err(error) => if let Some(error) = error {
-            eprintln!("{error}");
-            false
-        } else {
-            true
         }
     }
 }

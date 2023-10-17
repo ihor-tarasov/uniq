@@ -11,7 +11,7 @@ pub use chunk::*;
 pub use error::*;
 pub use pos::*;
 
-use self::{function::Function, lexer::Lexer, opcodes::Opcodes, token::Token};
+use self::{function::Function, lexer::Lexer, token::Token};
 use crate::{natives::Natives, opcode, raise};
 use std::{collections::HashMap, ops::Range};
 
@@ -29,8 +29,7 @@ impl<'a> std::fmt::Display for Slice<'a> {
 pub struct Compiler<'a> {
     token: Token,
     range: Range<usize>,
-    opcodes: Opcodes,
-    ranges: HashMap<u32, Pos>,
+    chunk: Chunk,
     buffer: Vec<u8>,
     address_stack: Vec<u32>,
     source_id: usize,
@@ -63,8 +62,7 @@ impl<'a> Compiler<'a> {
         Self {
             token: Token::End,
             range: 0..0,
-            opcodes: Opcodes::new(),
-            ranges: HashMap::new(),
+            chunk: Chunk::new(),
             buffer: Vec::new(),
             address_stack: Vec::new(),
             source_id,
@@ -99,81 +97,11 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn set_jf(&mut self, address: u32, value: u32) {
-        if value <= 0xFFFF {
-            self.opcodes[address] = opcode::JF2;
-            (value as u16)
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        } else {
-            self.opcodes[address] = opcode::JF4;
-            value
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        }
-    }
-
-    fn set_jt(&mut self, address: u32, value: u32) {
-        if value <= 0xFFFF {
-            self.opcodes[address] = opcode::JT2;
-            (value as u16)
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        } else {
-            self.opcodes[address] = opcode::JT4;
-            value
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        }
-    }
-
-    fn set_jp(&mut self, address: u32, value: u32) {
-        if value <= 0xFFFF {
-            self.opcodes[address] = opcode::JP2;
-            (value as u16)
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        } else {
-            self.opcodes[address] = opcode::JP4;
-            value
-                .to_be_bytes()
-                .iter()
-                .cloned()
-                .enumerate()
-                .for_each(|(i, b)| self.opcodes[address + i as u32 + 1] = b);
-        }
-    }
-
     fn integer<R>(&mut self, lexer: &mut Lexer<R>) -> Res
     where
         R: std::io::Read,
     {
-        let value = std::str::from_utf8(&self.buffer)?.parse::<u64>()?;
-        if value <= 0xFF {
-            self.opcodes.push(opcode::INT1)?;
-            self.opcodes.push(value as u8)?;
-        } else if value <= 0xFFFF {
-            self.opcodes.push(opcode::INT2)?;
-            self.opcodes.extend((value as u16).to_be_bytes())?;
-        } else {
-            self.opcodes.push(opcode::INT8)?;
-            self.opcodes.extend(value.to_be_bytes())?;
-        }
+        self.chunk.integer(&self.buffer)?;
         self.lex(lexer) // Skip value.
     }
 
@@ -181,9 +109,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
-        let value = std::str::from_utf8(&self.buffer)?.parse::<f64>()?;
-        self.opcodes.push(opcode::REAL)?;
-        self.opcodes.extend(value.to_be_bytes())?;
+        self.chunk.real(&self.buffer)?;
         self.lex(lexer) // Skip value.
     }
 
@@ -191,8 +117,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
-        self.opcodes
-            .push(if value { opcode::TRUE } else { opcode::FALSE })?;
+        self.chunk.boolean(value)?;
         self.lex(lexer) // Skip value.
     }
 
@@ -213,7 +138,7 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip 'return'.
 
         match self.token {
-            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
                 self.expression(lexer)?;
                 self.expect(Token::Semicolon)?;
@@ -221,7 +146,7 @@ impl<'a> Compiler<'a> {
         }
 
         self.lex(lexer)?; // Skip ';'.
-        self.opcodes.push(opcode::RET)
+        self.chunk.push(opcode::RET)
     }
 
     fn break_stat<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -231,7 +156,7 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip 'break'.
 
         match self.token {
-            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
                 self.expression(lexer)?;
                 self.expect(Token::Semicolon)?;
@@ -240,8 +165,7 @@ impl<'a> Compiler<'a> {
         
         self.lex(lexer)?; // Skip ';'.
 
-        let address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let address = self.chunk.empty_address()?;
 
         if let Some(cycle_address_size) = self.cycles_end_addresses_sizes.last_mut() {
             *cycle_address_size += 1;
@@ -259,7 +183,7 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip 'continue'.
 
         match self.token {
-            Token::Semicolon => self.opcodes.push(opcode::VOID)?,
+            Token::Semicolon => self.chunk.push(opcode::VOID)?,
             _ => {
                 self.expression(lexer)?;
                 self.expect(Token::Semicolon)?;
@@ -269,7 +193,7 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip ';'.
 
         if let Some(cycle_start) = self.cycles_starts.last().cloned() {
-            self.jump(cycle_start)
+            self.chunk.jump(cycle_start)
         } else {
             raise!("Unable to use 'continue' statement in this place.")
         }
@@ -288,7 +212,7 @@ impl<'a> Compiler<'a> {
                 if last_function {
                     last_function = false;
                 } else {
-                    self.opcodes.push(opcode::DROP)?;
+                    self.chunk.push(opcode::DROP)?;
                 }
             }
 
@@ -341,8 +265,7 @@ impl<'a> Compiler<'a> {
             self.expression(lexer)?; // Condition.
 
             // JF to the next block.
-            let next_jf_address = self.opcodes.len();
-            self.opcodes.extend([0; 5])?;
+            let next_jf_address = self.chunk.empty_address()?;
 
             self.expect(Token::LeftBrace)?;
 
@@ -352,31 +275,28 @@ impl<'a> Compiler<'a> {
                 self.lex(lexer)?; // Skip 'else'.
 
                 if self.token == Token::LeftBrace {
-                    self.address_stack.push(self.opcodes.len());
+                    self.address_stack.push(self.chunk.empty_address()?);
                     address_stack_size += 1;
-                    self.opcodes.extend([0; 5])?;
-                    self.set_jf(next_jf_address, self.opcodes.len());
+                    self.chunk.set_jf(next_jf_address, self.chunk.len());
                     self.block(lexer)?;
                     break;
                 } else if self.token == Token::If {
-                    self.address_stack.push(self.opcodes.len());
+                    self.address_stack.push(self.chunk.empty_address()?);
                     address_stack_size += 1;
-                    self.opcodes.extend([0; 5])?;
-                    self.set_jf(next_jf_address, self.opcodes.len());
+                    self.chunk.set_jf(next_jf_address, self.chunk.len());
                 }
             } else {
-                self.address_stack.push(self.opcodes.len());
+                self.address_stack.push(self.chunk.empty_address()?);
                 address_stack_size += 1;
-                self.opcodes.extend([0; 5])?;
-                self.set_jf(next_jf_address, self.opcodes.len());
-                self.opcodes.push(opcode::VOID)?;
+                self.chunk.set_jf(next_jf_address, self.chunk.len());
+                self.chunk.push(opcode::VOID)?;
                 break;
             }
         }
 
         for _ in 0..address_stack_size {
             let jp_address = self.address_stack.pop().unwrap();
-            self.set_jp(jp_address, self.opcodes.len());
+            self.chunk.set_jp(jp_address, self.chunk.len());
         }
 
         Ok(())
@@ -424,24 +344,7 @@ impl<'a> Compiler<'a> {
 
         self.lex(lexer)?; // Skip ')'.
 
-        self.opcodes.extend([opcode::CALL, arguments as u8])
-    }
-
-    fn store(&mut self, index: u32, is_local: bool) -> Res {
-        if index <= u8::MAX as u32 {
-            self.opcodes.extend([
-                if is_local { opcode::ST1 } else { opcode::GS1 },
-                index as u8,
-            ])
-        } else if index <= 0xFFFF {
-            self.opcodes
-                .push(if is_local { opcode::ST2 } else { opcode::GS2 })?;
-            self.opcodes.extend((index as u16).to_be_bytes())
-        } else {
-            self.opcodes
-                .push(if is_local { opcode::ST4 } else { opcode::GS4 })?;
-            self.opcodes.extend(index.to_le_bytes())
-        }
+        self.chunk.call(arguments as u8)
     }
 
     fn assign<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_local: bool) -> Res
@@ -450,24 +353,7 @@ impl<'a> Compiler<'a> {
     {
         self.lex(lexer)?; // Skip '='.
         self.expression(lexer)?;
-        self.store(index, is_local)
-    }
-
-    fn load(&mut self, index: u32, is_local: bool) -> Res {
-        if index <= u8::MAX as u32 {
-            self.opcodes.extend([
-                if is_local { opcode::LD1 } else { opcode::GL1 },
-                index as u8,
-            ])
-        } else if index <= 0xFFFF {
-            self.opcodes
-                .push(if is_local { opcode::LD2 } else { opcode::GL2 })?;
-            self.opcodes.extend((index as u16).to_be_bytes())
-        } else {
-            self.opcodes
-                .push(if is_local { opcode::LD4 } else { opcode::GL4 })?;
-            self.opcodes.extend(index.to_le_bytes())
-        }
+        self.chunk.store(index, is_local)
     }
 
     fn index<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -482,9 +368,9 @@ impl<'a> Compiler<'a> {
             Token::Equal => {
                 self.lex(lexer)?; // Skip '='.
                 self.expression(lexer)?;
-                self.opcodes.push(opcode::SET)
+                self.chunk.push(opcode::SET)
             }
-            _ => self.opcodes.push(opcode::GET),
+            _ => self.chunk.push(opcode::GET),
         }
     }
 
@@ -498,9 +384,9 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '++'.
-        self.load(index, is_local)?;
-        self.opcodes.push(opcode::INC)?;
-        self.store(index, is_local)
+        self.chunk.load(index, is_local)?;
+        self.chunk.push(opcode::INC)?;
+        self.chunk.store(index, is_local)
     }
 
     fn postfix_identifier_decrement<R>(
@@ -513,9 +399,9 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '--'.
-        self.load(index, is_local)?;
-        self.opcodes.push(opcode::DEC)?;
-        self.store(index, is_local)
+        self.chunk.load(index, is_local)?;
+        self.chunk.push(opcode::DEC)?;
+        self.chunk.store(index, is_local)
     }
 
     fn identifier<R>(&mut self, lexer: &mut Lexer<R>) -> Res
@@ -528,7 +414,7 @@ impl<'a> Compiler<'a> {
                 Token::Equal => self.assign(lexer, index, true),
                 Token::PlusPlus => self.postfix_identifier_increment(lexer, index, true),
                 Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, true),
-                _ => self.load(index, true),
+                _ => self.chunk.load(index, true),
             }
         } else if let Some(index) = self.find_global(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
@@ -536,16 +422,14 @@ impl<'a> Compiler<'a> {
                 Token::Equal => self.assign(lexer, index, false),
                 Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
                 Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
-                _ => self.load(index, false),
+                _ => self.chunk.load(index, false),
             }
         } else if let Some(address) = self.find_function(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
-            self.opcodes.push(opcode::PTR)?;
-            self.opcodes.extend(address.to_be_bytes())
+            self.chunk.ptr(address)
         } else if let Some(index) = self.natives.get_index(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
-            self.opcodes.push(opcode::NAT)?;
-            self.opcodes.extend(index.to_be_bytes())
+            self.chunk.nat(index)
         } else {
             raise!(
                 "Unknown identifier \"{}\".",
@@ -588,7 +472,7 @@ impl<'a> Compiler<'a> {
         self.expect(Token::Equal)?;
         self.lex(lexer)?; // Skip '='.
         self.expression(lexer)?;
-        self.store(local_id, self.is_parsing_function)?;
+        self.chunk.store(local_id, self.is_parsing_function)?;
         if expect_semicolon {
             self.expect(Token::Semicolon)?;
             self.lex(lexer) // Skip ';'.
@@ -610,17 +494,6 @@ impl<'a> Compiler<'a> {
             self.function.pop();
         } else {
             self.global.pop();
-        }
-    }
-
-    fn jump(&mut self, address: u32) -> Res {
-        if address <= 0xFFFF {
-            self.opcodes.push(opcode::JP2)?;
-            self.opcodes.extend((address as u16).to_be_bytes())?;
-            self.opcodes.extend([0; 2])
-        } else {
-            self.opcodes.push(opcode::JP4)?;
-            self.opcodes.extend(address.to_be_bytes())
         }
     }
 
@@ -657,16 +530,14 @@ impl<'a> Compiler<'a> {
 
         let mut address_count = 0;
 
-        let end_false_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_false_address = self.chunk.empty_address()?;
         self.address_stack.push(end_false_address);
         address_count += 1;
 
         loop {
             self.expression_without_logic(lexer)?;
 
-            let end_false_address = self.opcodes.len();
-            self.opcodes.extend([0; 5])?;
+            let end_false_address = self.chunk.empty_address()?;
             self.address_stack.push(end_false_address);
             address_count += 1;
 
@@ -683,19 +554,18 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        self.opcodes.push(opcode::TRUE)?;
+        self.chunk.boolean(true)?;
 
-        let end_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_address = self.chunk.empty_address()?;
 
         for _ in 0..address_count {
             let address = self.address_stack.pop().unwrap();
-            self.set_jf(address, self.opcodes.len());
+            self.chunk.set_jf(address, self.chunk.len());
         }
 
-        self.opcodes.push(opcode::FALSE)?;
+        self.chunk.boolean(false)?;
 
-        self.set_jp(end_address, self.opcodes.len());
+        self.chunk.set_jp(end_address, self.chunk.len());
 
         Ok(())
     }
@@ -733,16 +603,14 @@ impl<'a> Compiler<'a> {
 
         let mut address_count = 0;
 
-        let end_true_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_true_address = self.chunk.empty_address()?;
         self.address_stack.push(end_true_address);
         address_count += 1;
 
         loop {
             self.expression_without_logic(lexer)?;
 
-            let end_true_address = self.opcodes.len();
-            self.opcodes.extend([0; 5])?;
+            let end_true_address = self.chunk.empty_address()?;
             self.address_stack.push(end_true_address);
             address_count += 1;
 
@@ -759,19 +627,18 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        self.opcodes.push(opcode::FALSE)?;
+        self.chunk.boolean(false)?;
 
-        let end_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_address = self.chunk.empty_address()?;
 
         for _ in 0..address_count {
             let address = self.address_stack.pop().unwrap();
-            self.set_jt(address, self.opcodes.len());
+            self.chunk.set_jt(address, self.chunk.len());
         }
 
-        self.opcodes.push(opcode::TRUE)?;
+        self.chunk.boolean(true)?;
 
-        self.set_jp(end_address, self.opcodes.len());
+        self.chunk.set_jp(end_address, self.chunk.len());
 
         Ok(())
     }
@@ -781,13 +648,12 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip 'while'.
-        self.opcodes.push(opcode::VOID)?;
-        let while_start = self.opcodes.len();
+        self.chunk.push(opcode::VOID)?;
+        let while_start = self.chunk.len();
         // Condition.
         self.expression(lexer)?;
-        let end_jf_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
-        self.opcodes.push(opcode::DROP)?;
+        let end_jf_address = self.chunk.empty_address()?;
+        self.chunk.push(opcode::DROP)?;
 
         // Block.
         self.cycles_starts.push(while_start);
@@ -795,17 +661,17 @@ impl<'a> Compiler<'a> {
 
         self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
-        self.jump(while_start)?;
+        self.chunk.jump(while_start)?;
 
         self.cycles_starts.pop().unwrap();
         let ends_size = self.cycles_end_addresses_sizes.pop().unwrap();
 
         for _ in 0..ends_size {
             let address = self.cycles_end_addresses.pop().unwrap();
-            self.set_jp(address, self.opcodes.len());
+            self.chunk.set_jp(address, self.chunk.len());
         }
 
-        self.set_jf(end_jf_address, self.opcodes.len());
+        self.chunk.set_jf(end_jf_address, self.chunk.len());
         Ok(())
     }
 
@@ -865,46 +731,43 @@ impl<'a> Compiler<'a> {
         self.lex(lexer)?; // Skip '='.
 
         self.expression(lexer)?;
-        self.store(local_id, true)?;
-        self.opcodes.push(opcode::DROP)?;
+        self.chunk.store(local_id, true)?;
+        self.chunk.push(opcode::DROP)?;
 
         self.expect(Token::Comma)?;
         self.lex(lexer)?; // Skip ','.
 
-        self.opcodes.push(opcode::VOID)?;
-        let start = self.opcodes.len();
+        self.chunk.push(opcode::VOID)?;
+        let start = self.chunk.len();
 
         // Condition.
         self.expression(lexer)?;
-        let end_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
-        self.opcodes.push(opcode::DROP)?;
+        let end_address = self.chunk.empty_address()?;
+        self.chunk.push(opcode::DROP)?;
 
-        let skip_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
-        let step = self.opcodes.len();
+        let skip_address = self.chunk.empty_address()?;
+        let step = self.chunk.len();
 
         self.expect(Token::Comma)?;
         self.lex(lexer)?; // Skip ','.
 
         self.expression(lexer)?;
-        self.opcodes.push(opcode::DROP)?;
+        self.chunk.push(opcode::DROP)?;
 
-        let end_step_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_step_address = self.chunk.empty_address()?;
 
-        self.set_jp(skip_address, self.opcodes.len());
+        self.chunk.set_jp(skip_address, self.chunk.len());
 
         // Block.
         self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
 
-        self.jump(step)?;
-        self.set_jp(end_step_address, self.opcodes.len());
+        self.chunk.jump(step)?;
+        self.chunk.set_jp(end_step_address, self.chunk.len());
 
-        self.jump(start)?;
+        self.chunk.jump(start)?;
 
-        self.set_jf(end_address, self.opcodes.len());
+        self.chunk.set_jf(end_address, self.chunk.len());
 
         self.exit_block();
 
@@ -916,11 +779,11 @@ impl<'a> Compiler<'a> {
         R: std::io::Read,
     {
         self.lex(lexer)?; // Skip '['.
-        self.opcodes.push(opcode::LIST)?;
+        self.chunk.push(opcode::LIST)?;
 
         while self.token != Token::RightBracket {
             self.expression(lexer)?;
-            self.opcodes.push(opcode::ADD)?;
+            self.chunk.push(opcode::ADD)?;
             match self.token {
                 Token::RightBracket => break,
                 Token::Comma => {
@@ -939,11 +802,10 @@ impl<'a> Compiler<'a> {
     {
         self.lex(lexer)?; // Skip 'fn'.
 
-        let end_jp_address = self.opcodes.len();
-        self.opcodes.extend([0; 5])?;
+        let end_jp_address = self.chunk.empty_address()?;
 
         self.expect(Token::Identifier)?;
-        self.add_function(self.opcodes.len())?;
+        self.add_function(self.chunk.len())?;
         self.lex(lexer)?; // Skip function name.
         self.expect(Token::LeftParen)?;
         self.lex(lexer)?; // Skip '('.
@@ -967,27 +829,20 @@ impl<'a> Compiler<'a> {
         self.expect(Token::RightParen)?;
         self.lex(lexer)?; // Skip ')'.
 
-        self.opcodes.push(args_count as u8)?;
-        let stack_size_address = self.opcodes.len();
-        self.opcodes.extend([0; 4])?;
+        let stack_size_address = self.chunk.start_function(args_count as u8)?;
 
         self.expect(Token::LeftBrace)?;
         self.block(lexer)?;
 
-        self.opcodes.push(opcode::RET)?;
+        self.chunk.push(opcode::RET)?;
 
         self.is_parsing_function = false;
 
-        (self.function.stack_size() - args_count)
-            .to_be_bytes()
-            .iter()
-            .cloned()
-            .enumerate()
-            .for_each(|(i, b)| self.opcodes[stack_size_address + i as u32] = b);
+        self.chunk.write_u32_at(stack_size_address, self.function.stack_size() - args_count);
 
         self.function.clear();
 
-        self.set_jp(end_jp_address, self.opcodes.len());
+        self.chunk.set_jp(end_jp_address, self.chunk.len());
 
         Ok(())
     }
@@ -1038,12 +893,12 @@ impl<'a> Compiler<'a> {
             Token::Exclamation => {
                 self.lex(lexer)?; // Skip '!'.
                 self.secondary(lexer)?;
-                self.opcodes.push(opcode::NOT)
+                self.chunk.push(opcode::NOT)
             }
             Token::Minus => {
                 self.lex(lexer)?; // Skip '-'.
                 self.secondary(lexer)?;
-                self.opcodes.push(opcode::NEG)
+                self.chunk.push(opcode::NEG)
             }
             _ => self.secondary(lexer),
         }
@@ -1085,15 +940,12 @@ impl<'a> Compiler<'a> {
                 self.binary(lexer, current + 1)?;
             }
 
-            self.ranges.insert(
-                self.opcodes.len(),
-                Pos {
-                    range,
-                    source_id: self.source_id,
-                },
-            );
+            self.chunk.push_pos(Pos {
+                range,
+                source_id: self.source_id,
+            });
 
-            self.opcodes.push(opcode)?;
+            self.chunk.push(opcode)?;
         }
     }
 
@@ -1122,35 +974,31 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
+        if self.chunk.len() == 0 {
+            self.chunk.start_global()?;
+        } else {
+            self.chunk.pop();
+        }
+
         self.source_id = source_id;
         let mut lexer = Lexer::new(read)?;
         self.lex(&mut lexer)?;
-
-        let stack_size_address = self.opcodes.len();
-        self.opcodes.extend([0; 4])?;
 
         self.is_parsing_function = false;
 
         self.statements(&mut lexer, Token::End, true)?;
 
-        self.opcodes.push(opcode::RET)?;
-
-        self.global
-            .stack_size()
-            .to_be_bytes()
-            .iter()
-            .cloned()
-            .enumerate()
-            .for_each(|(i, b)| self.opcodes[stack_size_address + i as u32] = b);
+        self.chunk.push(opcode::RET)?;
 
         Ok(())
     }
 
-    pub fn into_chunk(self) -> Chunk {
-        Chunk {
-            opcodes: self.opcodes.into(),
-            ranges: self.ranges,
-        }
+    pub fn finish(&mut self) {
+        self.chunk.write_u32_at(0, self.global.stack_size());
+    }
+
+    pub fn chunk(&self) -> &Chunk {
+        &self.chunk
     }
 
     pub fn range(&self) -> Range<usize> {
@@ -1159,5 +1007,9 @@ impl<'a> Compiler<'a> {
 
     pub fn source_id(&self) -> usize {
         self.source_id
+    }
+
+    pub fn len(&self) -> u32 {
+        self.chunk.len()
     }
 }

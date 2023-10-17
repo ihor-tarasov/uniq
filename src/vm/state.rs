@@ -12,7 +12,7 @@ pub struct State<'a> {
 }
 
 impl<'a> State<'a> {
-    pub fn new(stack: &'a mut [Value], natives: &'a Natives) -> Self {
+    pub fn new(start: u32, stack: &'a mut [Value], natives: &'a Natives) -> Self {
         assert!(
             stack.len() <= u32::MAX as usize,
             "Maximum stack length must be u32::MAX."
@@ -20,7 +20,7 @@ impl<'a> State<'a> {
         Self {
             stack,
             stack_pointer: 0,
-            program_counter: 0,
+            program_counter: start,
             locals: 0,
             message: None,
             natives,

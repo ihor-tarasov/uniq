@@ -31,6 +31,14 @@ impl Opcodes {
     pub fn len(&self) -> u32 {
         self.0.len() as u32
     }
+
+    pub fn pop(&mut self) {
+        self.0.pop();
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 impl std::ops::Index<u32> for Opcodes {

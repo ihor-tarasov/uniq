@@ -1,6 +1,6 @@
 use std::{cell::RefCell, io::BufReader, rc::Rc};
 
-use crate::{library, utils, vm::Value, SliceRead};
+use crate::{library, utils, vm::Value, SliceRead, compiler::Compiler};
 
 fn eval<'a, T>(code: T, expected: Value)
 where
@@ -8,10 +8,14 @@ where
 {
     let natives = library::load();
     let mut read = code.into();
-    match utils::compile("stdin", &mut read, &natives) {
-        Ok(chunk) => match utils::run(&["stdin"], &mut read, &chunk, &natives) {
-            Ok(value) => assert_eq!(value, expected),
-            Err(error) => panic!("{error}"),
+    let mut compiler = Compiler::new(0, &natives);
+    match utils::compile(&mut compiler, "stdin", &mut read) {
+        Ok(_) => {
+            compiler.finish();
+            match utils::run(0, &["stdin"], &mut read, compiler.chunk(), &natives) {
+                Ok(value) => assert_eq!(value, expected),
+                Err(error) => panic!("{error}"),
+            }
         },
         Err(error) => panic!("{error}"),
     }
@@ -22,10 +26,14 @@ fn eval_file(path: &str, expected: Value) {
     match std::fs::File::open(path) {
         Ok(file) => {
             let mut read = BufReader::new(file);
-            match utils::compile(path, &mut read, &natives) {
-                Ok(chunk) => match utils::run(&[path], &mut read, &chunk, &natives) {
-                    Ok(value) => assert_eq!(value, expected),
-                    Err(error) => panic!("{error}"),
+            let mut compiler = Compiler::new(0, &natives);
+            match utils::compile(&mut compiler, path, &mut read) {
+                Ok(_) => {
+                    compiler.finish();
+                    match utils::run(0, &[path], &mut read, compiler.chunk(), &natives) {
+                        Ok(value) => assert_eq!(value, expected),
+                        Err(error) => panic!("{error}"),
+                    }
                 },
                 Err(error) => panic!("{error}"),
             }
