@@ -17,7 +17,7 @@ impl<'a> State<'a> {
     fn index_get(&mut self, data: Value, key: Value) -> Res<Value> {
         match data {
             Value::List(list) => {
-                let list = list.borrow();
+                let list = list.read();
                 self.index_get_list(&list, key)
             }
             _ => self.error(format!("Can't to index {data}.")),
@@ -41,7 +41,7 @@ impl<'a> State<'a> {
     fn index_set(&mut self, data: Value, key: Value, value: Value) -> Res {
         match data {
             Value::List(list) => {
-                let mut list = list.borrow_mut();
+                let mut list = list.write();
                 self.index_set_list(&mut list, key, value)
             }
             _ => self.error(format!("Can't to index {data}.")),

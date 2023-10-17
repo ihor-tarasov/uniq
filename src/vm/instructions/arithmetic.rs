@@ -13,7 +13,7 @@ impl<'a> State<'a> {
             (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l + r)),
             (Value::List(list), value) => {
                 {
-                    list.borrow_mut().push(value);
+                    list.push(value);
                 }
                 Ok(Value::List(list))
             }

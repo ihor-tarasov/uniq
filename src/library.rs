@@ -9,7 +9,7 @@ pub fn load() -> Natives {
     });
 
     natives.function(b"len", 1, |state| match state.arg(0) {
-        Value::List(object) => Ok(Value::Integer(object.borrow().len() as i64)),
+        Value::List(object) => Ok(Value::Integer(object.len())),
         _ => state.error(format!(
             "Unsupported value {} for function \"len\".",
             state.arg(0)

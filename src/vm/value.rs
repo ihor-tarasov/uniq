@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use super::List;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -9,7 +9,7 @@ pub enum Value {
     Pointer(u32),
     Native(u32),
     CallState(u32, u32),
-    List(Rc<RefCell<Vec<Value>>>),
+    List(List),
 }
 
 impl std::fmt::Display for Value {
@@ -22,18 +22,7 @@ impl std::fmt::Display for Value {
             Value::Pointer(value) => write!(f, "${value}"),
             Value::Native(value) => write!(f, "${value}"),
             Value::CallState(pc, locals) => write!(f, "(PC:{pc} LC:{locals})"),
-            Value::List(list) => {
-                write!(f, "[")?;
-                let list = list.borrow();
-                let mut iter = list.iter();
-                if let Some(value) = iter.next() {
-                    write!(f, "{value}")?;
-                    for value in iter {
-                        write!(f, ", {value}")?;
-                    }
-                }
-                write!(f, "]")
-            }
+            Value::List(list) => list.fmt(f),
         }
     }
 }

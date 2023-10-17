@@ -1,4 +1,26 @@
 
+fn generate_big_array() {
+    let arr = [];
+    for i = 0, i < 1000000, i++ {
+        arr = arr + i;
+    }
+    arr;
+}
+
+fn process_big_array() {
+    let array = generate_big_array();
+    bubble_sort(array);
+    print(1);
+}
+
+fn work() {
+    for i = 0, i < 100, i++ {
+        process_big_array();
+    }
+}
+
+work();
+
 let arr = [5, 2, 7, 2, 9, 10, 12, 0.5, 12, 34, 5.6, 100, 45];
 bubble_sort(arr);
 print(arr);
