@@ -1,4 +1,7 @@
-use crate::{vm::{State, Value, Res, Error, utils}, dumpln};
+use crate::{
+    dumpln,
+    vm::{utils, Error, Res, State, Value},
+};
 
 impl<'a> State<'a> {
     pub fn push(&mut self, value: Value) -> Res {
@@ -18,7 +21,10 @@ impl<'a> State<'a> {
             Err(Error::StackUnderflow)
         } else {
             self.stack_pointer -= 1;
-            Ok(self.stack[self.stack_pointer as usize].clone())
+            Ok(std::mem::replace(
+                &mut self.stack[self.stack_pointer as usize],
+                Value::Void,
+            ))
         }
     }
 

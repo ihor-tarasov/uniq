@@ -39,8 +39,11 @@ impl<'a> State<'a> {
         }
         let result = func(self)?;
         self.program_counter = utils::checked_add(self.program_counter, 2)?;
+        for i in self.locals..self.stack_pointer {
+            self.stack[i as usize] = Value::Void;
+        }
+        self.stack_pointer = self.locals - 1;
         self.locals = old_locals;
-        self.stack_pointer = self.stack_pointer - params_count as u32 - 1;
         self.push(result)
     }
 
@@ -68,8 +71,12 @@ impl<'a> State<'a> {
             return Ok(false);
         }
         let result = self.pop()?;
+        for i in self.locals..self.stack_pointer {
+            self.stack[i as usize] = Value::Void;
+        }
         self.stack_pointer = self.locals - 1;
-        let call_state = self.stack[self.stack_pointer as usize].clone();
+        let call_state =
+            std::mem::replace(&mut self.stack[self.stack_pointer as usize], Value::Void);
         match call_state {
             Value::CallState(new_pc, new_locals) => {
                 self.push(result)?;
