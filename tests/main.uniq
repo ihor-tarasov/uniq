@@ -7,8 +7,8 @@ fn generate_big_array(n) {
 }
 
 fn process_big_array() {
-    let arr = generate_big_array(10000);
-    quick_sort(arr, 0, len(arr) - 1);
+    let arr = generate_big_array(1000000);
+    merge_sort(arr, 0, len(arr) - 1);
     print(1);
 }
 
