@@ -1,15 +1,14 @@
-
-fn generate_big_array() {
+fn generate_big_array(n) {
     let arr = [];
-    for i = 0, i < 1000000, i++ {
-        arr = arr + i;
+    for i = 0, i < n, i++ {
+        arr = arr + (n - i);
     }
     arr;
 }
 
 fn process_big_array() {
-    let array = generate_big_array();
-    bubble_sort(array);
+    let arr = generate_big_array(10000);
+    quick_sort(arr, 0, len(arr) - 1);
     print(1);
 }
 

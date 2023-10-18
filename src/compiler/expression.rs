@@ -1,6 +1,6 @@
 use crate::{opcode, raise};
 
-use super::{Compiler, lexer::Lexer, Res, token::Token, Pos};
+use super::{lexer::Lexer, token::Token, Compiler, Pos, Res};
 
 fn get_precedence(token: Token) -> u8 {
     match token {
@@ -55,6 +55,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
+        let range = self.range.clone();
         self.lex(lexer)?; // Skip '('.
 
         let mut arguments = 0;
@@ -77,6 +78,10 @@ impl<'a> Compiler<'a> {
 
         self.lex(lexer)?; // Skip ')'.
 
+        self.chunk.push_pos(Pos {
+            range,
+            source_id: self.source_id,
+        });
         self.chunk.call(arguments as u8)
     }
 
@@ -93,6 +98,7 @@ impl<'a> Compiler<'a> {
     where
         R: std::io::Read,
     {
+        let range = self.range.clone();
         self.lex(lexer)?; // Skip '['.
         self.expression(lexer, is_global)?;
         self.expect(Token::RightBracket)?;
@@ -101,9 +107,19 @@ impl<'a> Compiler<'a> {
             Token::Equal => {
                 self.lex(lexer)?; // Skip '='.
                 self.expression(lexer, is_global)?;
+                self.chunk.push_pos(Pos {
+                    range,
+                    source_id: self.source_id,
+                });
                 self.chunk.push(opcode::SET)
             }
-            _ => self.chunk.push(opcode::GET),
+            _ => {
+                self.chunk.push_pos(Pos {
+                    range,
+                    source_id: self.source_id,
+                });
+                self.chunk.push(opcode::GET)
+            }
         }
     }
 
@@ -320,7 +336,11 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub(super) fn expression_without_logic<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
+    pub(super) fn expression_without_logic<R>(
+        &mut self,
+        lexer: &mut Lexer<R>,
+        is_global: bool,
+    ) -> Res
     where
         R: std::io::Read,
     {

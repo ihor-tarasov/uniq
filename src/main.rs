@@ -5,7 +5,7 @@ use uniq::{
     library,
     natives::Natives,
     utils,
-    vm::State,
+    vm::{State, Value},
     SliceRead,
 };
 
@@ -60,7 +60,7 @@ fn compile_files(paths: &[String], natives: &Natives) -> Result<Chunk, String> {
 }
 
 fn run_chunk(paths: &[String], chunk: Chunk, natives: &Natives) {
-    let mut stack = utils::new_stack::<256>();
+    let mut stack = vec![Value::Void; 1048576];
     let mut state = State::new(&mut stack, natives);
     match utils::run_file(&mut state, paths, &chunk) {
         Ok(_) => (),
