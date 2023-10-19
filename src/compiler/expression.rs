@@ -1,4 +1,4 @@
-use crate::{opcode, raise};
+use crate::{compiler::utils, opcode, raise};
 
 use super::{lexer::Lexer, token::Token, Compiler, Pos, Res};
 
@@ -134,8 +134,10 @@ impl<'a> Compiler<'a> {
     {
         self.lex(lexer)?; // Skip '++'.
         self.chunk.load(index, is_global)?;
+        self.chunk.load(index, is_global)?;
         self.chunk.push(opcode::INC)?;
-        self.chunk.store(index, is_global)
+        self.chunk.store(index, is_global)?;
+        self.chunk.push(opcode::DROP)
     }
 
     fn postfix_identifier_decrement<R>(
@@ -149,8 +151,65 @@ impl<'a> Compiler<'a> {
     {
         self.lex(lexer)?; // Skip '--'.
         self.chunk.load(index, is_global)?;
+        self.chunk.load(index, is_global)?;
+        self.chunk.push(opcode::DEC)?;
+        self.chunk.store(index, is_global)?;
+        self.chunk.push(opcode::DROP)
+    }
+
+    fn identifier_only<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res<(bool, u32)>
+    where
+        R: std::io::Read,
+    {
+        if !is_global {
+            if let Some(index) = self.function.get(&self.buffer) {
+                self.lex(lexer)?; // Skip identifier.
+                return Ok((false, index));
+            }
+        }
+        if let Some(index) = self.globals.get(&self.buffer) {
+            self.lex(lexer)?; // Skip identifier.
+            Ok((true, index))
+        } else {
+            raise!("Unknown identifier \"{}\".", utils::Slice(&self.buffer))
+        }
+    }
+
+    fn prefix_identifier_increment<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '++'.
+        let (is_global, index) = self.identifier_only(lexer, is_global)?;
+
+        self.chunk.load(index, is_global)?;
+        self.chunk.push(opcode::INC)?;
+        self.chunk.store(index, is_global)
+    }
+
+    fn prefix_identifier_decrement<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
+    where
+        R: std::io::Read,
+    {
+        self.lex(lexer)?; // Skip '--'.
+        self.expect(Token::Identifier)?;
+        let (is_global, index) = self.identifier_only(lexer, is_global)?;
+
+        self.chunk.load(index, is_global)?;
         self.chunk.push(opcode::DEC)?;
         self.chunk.store(index, is_global)
+    }
+
+    fn post_variable<R>(&mut self, lexer: &mut Lexer<R>, index: u32, is_global: bool) -> Res
+    where
+        R: std::io::Read,
+    {
+        match self.token {
+            Token::Equal => self.assign(lexer, index, is_global),
+            Token::PlusPlus => self.postfix_identifier_increment(lexer, index, is_global),
+            Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, is_global),
+            _ => self.chunk.load(index, is_global),
+        }
     }
 
     fn identifier<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
@@ -160,22 +219,12 @@ impl<'a> Compiler<'a> {
         if !is_global {
             if let Some(index) = self.function.get(&self.buffer) {
                 self.lex(lexer)?; // Skip identifier.
-                return match self.token {
-                    Token::Equal => self.assign(lexer, index, false),
-                    Token::PlusPlus => self.postfix_identifier_increment(lexer, index, false),
-                    Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, false),
-                    _ => self.chunk.load(index, false),
-                };
+                return self.post_variable(lexer, index, false);
             }
         }
         if let Some(index) = self.globals.get(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
-            match self.token {
-                Token::Equal => self.assign(lexer, index, true),
-                Token::PlusPlus => self.postfix_identifier_increment(lexer, index, true),
-                Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, true),
-                _ => self.chunk.load(index, true),
-            }
+            self.post_variable(lexer, index, true)
         } else if let Some(address) = self.find_function(&self.buffer) {
             self.lex(lexer)?; // Skip identifier.
             self.chunk.ptr(address)
@@ -229,6 +278,8 @@ impl<'a> Compiler<'a> {
             Token::While => self.while_stat(lexer),
             Token::LeftBracket => self.list(lexer, false),
             Token::For => self.for_stat(lexer),
+            Token::PlusPlus => self.prefix_identifier_increment(lexer, false),
+            Token::MinusMinus => self.prefix_identifier_decrement(lexer, false),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),
@@ -247,6 +298,8 @@ impl<'a> Compiler<'a> {
             Token::LeftParen => self.subexpression(lexer, true),
             Token::Identifier => self.identifier(lexer, true),
             Token::LeftBracket => self.list(lexer, true),
+            Token::PlusPlus => self.prefix_identifier_increment(lexer, true),
+            Token::MinusMinus => self.prefix_identifier_decrement(lexer, true),
             Token::Unknown => raise!("Unknown token."),
             Token::End => raise!("Unexpected end."),
             _ => raise!("Unexpected token."),
