@@ -6,11 +6,11 @@ fn merge(arr, left, middle, right) {
     let R = [];
 
     for i = 0, i < low, i++ {           # Copy elements into left subarray
-        L = L + arr[left + i];
+        L += arr[left + i];
     }
 
     for i = 0, i < high, i++ {          # Copy elements into right subarray
-        R = R + arr[middle + 1 + i];
+        R += arr[middle + 1 + i];
     }
 
     let k = left;                       # Get starting index for sort

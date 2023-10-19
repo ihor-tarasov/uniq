@@ -120,6 +120,7 @@ where
         if let Some(c) = self.current {
             match c {
                 b'+' => self.single(Token::PlusPlus),
+                b'=' => self.single(Token::PlusEqual),
                 _ => Ok(Token::Plus)
             }
         } else {
@@ -132,10 +133,35 @@ where
         if let Some(c) = self.current {
             match c {
                 b'-' => self.single(Token::MinusMinus),
+                b'=' => self.single(Token::MinusEqual),
                 _ => Ok(Token::Minus)
             }
         } else {
             Ok(Token::Minus)
+        }
+    }
+
+    fn double_asterisk(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::AsteriskEqual),
+                _ => Ok(Token::Asterisk)
+            }
+        } else {
+            Ok(Token::Asterisk)
+        }
+    }
+
+    fn double_slash(&mut self) -> std::io::Result<Token> {
+        self.advance()?;
+        if let Some(c) = self.current {
+            match c {
+                b'=' => self.single(Token::SlashEqual),
+                _ => Ok(Token::Slash)
+            }
+        } else {
+            Ok(Token::Slash)
         }
     }
 
@@ -172,8 +198,8 @@ where
             match c {
                 b'+' => self.double_plus(),
                 b'-' => self.double_minus(),
-                b'*' => self.single(Token::Asterisk),
-                b'/' => self.single(Token::Slash),
+                b'*' => self.double_asterisk(),
+                b'/' => self.double_slash(),
                 b'(' => self.single(Token::LeftParen),
                 b')' => self.single(Token::RightParen),
                 b'{' => self.single(Token::LeftBrace),

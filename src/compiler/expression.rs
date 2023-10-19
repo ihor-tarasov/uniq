@@ -94,6 +94,28 @@ impl<'a> Compiler<'a> {
         self.chunk.store(index, is_global)
     }
 
+    fn assign_binary<R>(
+        &mut self,
+        lexer: &mut Lexer<R>,
+        index: u32,
+        is_global: bool,
+        opcode: u8,
+    ) -> Res
+    where
+        R: std::io::Read,
+    {
+        let range = self.range.clone();
+        self.lex(lexer)?; // Skip operator.
+        self.chunk.load(index, is_global)?;
+        self.expression(lexer, is_global)?;
+        self.chunk.push_pos(Pos {
+            range,
+            source_id: self.source_id,
+        });
+        self.chunk.push(opcode)?;
+        self.chunk.store(index, is_global)
+    }
+
     fn index<R>(&mut self, lexer: &mut Lexer<R>, is_global: bool) -> Res
     where
         R: std::io::Read,
@@ -206,6 +228,10 @@ impl<'a> Compiler<'a> {
     {
         match self.token {
             Token::Equal => self.assign(lexer, index, is_global),
+            Token::PlusEqual => self.assign_binary(lexer, index, is_global, opcode::ADD),
+            Token::MinusEqual => self.assign_binary(lexer, index, is_global, opcode::SUB),
+            Token::AsteriskEqual => self.assign_binary(lexer, index, is_global, opcode::MUL),
+            Token::SlashEqual => self.assign_binary(lexer, index, is_global, opcode::DIV),
             Token::PlusPlus => self.postfix_identifier_increment(lexer, index, is_global),
             Token::MinusMinus => self.postfix_identifier_decrement(lexer, index, is_global),
             _ => self.chunk.load(index, is_global),

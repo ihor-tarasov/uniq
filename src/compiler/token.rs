@@ -29,6 +29,10 @@ pub enum Token {
     Minus, // '-'
     Asterisk, // '*'
     Slash, // '/'
+    PlusEqual, // '+='
+    MinusEqual, // '-='
+    AsteriskEqual, // '*='
+    SlashEqual, // '/='
     Equal, // '='
     Exclamation, // '!'
     PlusPlus, // '++'
@@ -87,6 +91,10 @@ impl std::fmt::Display for Token {
             Token::LessEqual => write!(f, "'<='"),
             Token::Unknown => write!(f, "unknown"),
             Token::End => write!(f, "end of code"),
+            Token::PlusEqual => write!(f, "'+='"),
+            Token::MinusEqual => write!(f, "'-='"),
+            Token::AsteriskEqual => write!(f, "'*='"),
+            Token::SlashEqual => write!(f, "'/='"),
         }
     }
 }
