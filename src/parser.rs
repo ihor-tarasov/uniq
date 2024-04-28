@@ -35,8 +35,8 @@ where
             Token::End => Err(format!("Expected value, found end.")),
             Token::ToBigInteger => Err(format!(
                 "Integer to big, supported range is from {} to {}",
-                i32::MIN,
-                i32::MAX
+                i64::MIN,
+                i64::MAX
             )),
             token => Err(format!("Expected value, found {token}.")),
         }
@@ -96,8 +96,8 @@ where
                 )),
                 Token::ToBigInteger => Err(format!(
                     "Integer to big, supported range is from {} to {}",
-                    i32::MIN,
-                    i32::MAX
+                    i64::MIN,
+                    i64::MAX
                 )),
                 Token::End => Ok(Some(node)),
                 token => Err(format!("Expected end, found {token}")),

@@ -1,9 +1,9 @@
-use crate::{Instruction, Program, VMError};
+use crate::{vm_error, Instruction, Program, VMResult, Value};
 
 const STACK_SIZE: usize = 256;
 
 pub struct State {
-    stack: [i32; STACK_SIZE],
+    stack: [Value; STACK_SIZE],
     stack_pointer: usize,
     program_counter: usize,
 }
@@ -11,40 +11,40 @@ pub struct State {
 impl State {
     pub fn new() -> Self {
         Self {
-            stack: [0; STACK_SIZE],
+            stack: [Value::Void; STACK_SIZE],
             stack_pointer: 0,
             program_counter: 0,
         }
     }
 
-    fn push(&mut self, value: i32) -> Result<(), VMError> {
+    fn push(&mut self, value: Value) -> VMResult {
         if self.stack_pointer < STACK_SIZE {
             self.stack[self.stack_pointer] = value;
             self.stack_pointer += 1;
             Ok(())
         } else {
-            Err(VMError::StackOverflow)
+            vm_error(format!("Stack overflow"))
         }
     }
 
-    fn pop(&mut self) -> Result<i32, VMError> {
+    fn pop(&mut self) -> VMResult<Value> {
         if self.stack_pointer == 0 {
-            Err(VMError::StackUnderflow)
+            vm_error(format!("Stack underflow"))
         } else {
             self.stack_pointer -= 1;
             Ok(self.stack[self.stack_pointer])
         }
     }
 
-    fn integer(&mut self, value: i32) -> Result<bool, VMError> {
-        self.push(value)?;
+    fn integer(&mut self, value: i64) -> VMResult<bool> {
+        self.push(Value::Integer(value))?;
         self.program_counter += 1;
         Ok(true)
     }
 
-    fn binary<F>(&mut self, f: F) -> Result<bool, VMError>
+    fn binary<F>(&mut self, f: F) -> VMResult<bool>
     where
-        F: Fn(&mut Self, i32, i32) -> Result<i32, VMError>
+        F: Fn(&mut Self, Value, Value) -> VMResult<Value>,
     {
         let right = self.pop()?;
         let left = self.pop()?;
@@ -54,37 +54,18 @@ impl State {
         Ok(true)
     }
 
-    fn addict(&mut self, left: i32, right: i32) -> Result<i32, VMError> {
-        Ok(left.wrapping_add(right))
-    }
-
-    fn subtract(&mut self, left: i32, right: i32) -> Result<i32, VMError> {
-        Ok(left.wrapping_sub(right))
-    }
-
-    fn multiply(&mut self, left: i32, right: i32) -> Result<i32, VMError> {
-        Ok(left.wrapping_mul(right))
-    }
-
-    fn divide(&mut self, left: i32, right: i32) -> Result<i32, VMError> {
-        if right == 0 {
-            Err(VMError::DividingByZero)
-        } else {
-            Ok(left.wrapping_div(right))
-        }
-    }
-
-    fn end(&mut self) -> Result<bool, VMError> {
+    fn end(&mut self) -> VMResult<bool> {
         Ok(false)
     }
 
-    fn fetch(&mut self, program: &Program) -> Result<Instruction, VMError> {
-        program
-            .instruction(self.program_counter)
-            .ok_or(VMError::ProgramCounterOutOfBounds)
+    fn fetch(&mut self, program: &Program) -> VMResult<Instruction> {
+        match program.instruction(self.program_counter) {
+            Some(instruction) => Ok(instruction),
+            None => vm_error(format!("Program counter out of bounds")),
+        }
     }
 
-    fn step(&mut self, program: &Program) -> Result<bool, VMError> {
+    fn step(&mut self, program: &Program) -> VMResult<bool> {
         let instruction = self.fetch(program)?;
         match instruction {
             Instruction::Integer(value) => self.integer(value),
@@ -96,7 +77,7 @@ impl State {
         }
     }
 
-    pub fn run(&mut self, program: &Program) -> Result<i32, VMError> {
+    pub fn run(&mut self, program: &Program) -> VMResult<Value> {
         while self.step(program)? {}
         self.pop()
     }

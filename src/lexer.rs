@@ -36,14 +36,14 @@ where
     }
 
     fn integer(&mut self) -> Token {
-        let mut accumulator = 0i32;
+        let mut accumulator = 0i64;
         while let Some(c) = self.current {
             if c.is_ascii_digit() {
                 let (next, overflow) = accumulator.overflowing_mul(10);
                 if overflow {
                     return Token::ToBigInteger;
                 }
-                let (next, overflow) = next.overflowing_add((c - b'0') as i32);
+                let (next, overflow) = next.overflowing_add((c - b'0') as i64);
                 if overflow {
                     return Token::ToBigInteger;
                 }

@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(PartialEq)]
 pub enum Token {
-    Integer(i32),
+    Integer(i64),
     Plus, // '+'
     Minus, // '-'
     Asterisk, // '*'

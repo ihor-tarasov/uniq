@@ -16,7 +16,7 @@ fn build(code: &str) -> uniq::Program {
     }
 }
 
-fn eval(code: &str) -> i32 {
+fn eval(code: &str) -> uniq::Value {
     let program = build(code);
 
     match uniq::run(&program) {

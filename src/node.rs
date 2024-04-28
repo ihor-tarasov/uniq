@@ -6,12 +6,12 @@ pub enum Operator {
 }
 
 pub enum Node {
-    Integer(i32),
+    Integer(i64),
     Binary(Box<(Node, Node, Operator)>),
 }
 
 impl Node {
-    pub fn new_integer(value: i32) -> Self {
+    pub fn new_integer(value: i64) -> Self {
         Self::Integer(value)
     }
 

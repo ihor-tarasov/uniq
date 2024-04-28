@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Instruction {
-    Integer(i32),
+    Integer(i64),
     Addict,
     Subtract,
     Multiply,
