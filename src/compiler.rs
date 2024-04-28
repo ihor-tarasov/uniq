@@ -24,6 +24,7 @@ impl Compiler {
             Operator::Subtract => self.instructions.push(Instruction::Subtract),
             Operator::Multiply => self.instructions.push(Instruction::Multiply),
             Operator::Divide => self.instructions.push(Instruction::Divide),
+            Operator::Modulo => self.instructions.push(Instruction::Modulo),
         }
         Ok(())
     }

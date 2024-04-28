@@ -3,6 +3,7 @@ pub enum Operator {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
 }
 
 pub enum Node {

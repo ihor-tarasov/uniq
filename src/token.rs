@@ -7,6 +7,7 @@ pub enum Token {
     Minus, // '-'
     Asterisk, // '*'
     Slash, // '/'
+    Percent, // '%'
     Unknown(u8),
     ToBigInteger,
     End,
@@ -20,6 +21,7 @@ impl fmt::Display for Token {
             Token::Minus => write!(f, "-"),
             Token::Asterisk => write!(f, "*"),
             Token::Slash => write!(f, "/"),
+            Token::Percent => write!(f, "%"),
             Token::Unknown(c) => write!(f, "{}", *c as char),
             Token::ToBigInteger => write!(f, "to big integer"),
             Token::End => write!(f, ""),

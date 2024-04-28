@@ -64,6 +64,7 @@ where
                 b'-' => self.single(Token::Minus),
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
+                b'%' => self.single(Token::Percent),
                 b'0'..=b'9' => self.integer(),
                 _ => self.single(Token::Unknown(c)),
             }

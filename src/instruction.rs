@@ -7,5 +7,6 @@ pub enum Instruction {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
     End,
 }

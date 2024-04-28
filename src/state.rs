@@ -73,6 +73,7 @@ impl State {
             Instruction::Subtract => self.binary(Self::subtract),
             Instruction::Multiply => self.binary(Self::multiply),
             Instruction::Divide => self.binary(Self::divide),
+            Instruction::Modulo => self.binary(Self::modulo),
             Instruction::End => self.end(),
         }
     }

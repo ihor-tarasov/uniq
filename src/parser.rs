@@ -60,6 +60,7 @@ where
         match token {
             Token::Asterisk => Some(Operator::Multiply),
             Token::Slash => Some(Operator::Divide),
+            Token::Percent => Some(Operator::Modulo),
             _ => None,
         }
     }

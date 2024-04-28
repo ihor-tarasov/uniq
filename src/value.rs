@@ -67,4 +67,20 @@ impl State {
             (l, r) => vm_error(format!("Unable to divide {l} and {r}")),
         }
     }
+
+    pub fn modulo(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => {
+                if r == 0 {
+                    vm_error(format!("Dividing by zero."))
+                } else {
+                    Ok(Value::Integer(l.wrapping_rem(r)))
+                }
+            }
+            (Value::Integer(l), Value::Real(r)) => Ok(Value::Real(l as f64 % r)),
+            (Value::Real(l), Value::Integer(r)) => Ok(Value::Real(l % r as f64)),
+            (Value::Real(l), Value::Real(r)) => Ok(Value::Real(l % r)),
+            (l, r) => vm_error(format!("Unable to modulo {l} and {r}")),
+        }
+    }
 }
