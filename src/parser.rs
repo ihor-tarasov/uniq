@@ -1,4 +1,4 @@
-use crate::{lexer::Lexer, token::Token, Node, Operator};
+use crate::{lexer::Lexer, token::Token, Instruction, Node};
 
 pub struct Parser<I> {
     lexer: Lexer<I>,
@@ -45,7 +45,7 @@ where
     fn binary_helper<N, O>(&mut self, next: &N, oper: &O) -> Result<Node, String>
     where
         N: Fn(&mut Self) -> Result<Node, String>,
-        O: Fn(&Token) -> Option<Operator>,
+        O: Fn(&Token) -> Option<Instruction>,
     {
         let mut node = next(self)?;
         while let Some(operator) = oper(&self.token) {
@@ -56,11 +56,11 @@ where
         Ok(node)
     }
 
-    fn factor_operator(token: &Token) -> Option<Operator> {
+    fn factor_operator(token: &Token) -> Option<Instruction> {
         match token {
-            Token::Asterisk => Some(Operator::Multiply),
-            Token::Slash => Some(Operator::Divide),
-            Token::Percent => Some(Operator::Modulo),
+            Token::Asterisk => Some(Instruction::Multiply),
+            Token::Slash => Some(Instruction::Divide),
+            Token::Percent => Some(Instruction::Modulo),
             _ => None,
         }
     }
@@ -69,10 +69,10 @@ where
         self.binary_helper(&Self::primary, &Self::factor_operator)
     }
 
-    fn term_operator(token: &Token) -> Option<Operator> {
+    fn term_operator(token: &Token) -> Option<Instruction> {
         match token {
-            Token::Plus => Some(Operator::Addict),
-            Token::Minus => Some(Operator::Subtract),
+            Token::Plus => Some(Instruction::Addict),
+            Token::Minus => Some(Instruction::Subtract),
             _ => None,
         }
     }

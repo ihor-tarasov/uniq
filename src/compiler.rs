@@ -1,4 +1,4 @@
-use crate::{Instruction, Node, Operator, Program};
+use crate::{Instruction, Node, Program};
 
 pub struct Compiler {
     instructions: Vec<Instruction>,
@@ -16,16 +16,10 @@ impl Compiler {
         Ok(())
     }
 
-    fn binary(&mut self, data: &(Node, Node, Operator)) -> Result<(), String> {
+    fn binary(&mut self, data: &(Node, Node, Instruction)) -> Result<(), String> {
         self.node(&data.0)?;
         self.node(&data.1)?;
-        match data.2 {
-            Operator::Addict => self.instructions.push(Instruction::Addict),
-            Operator::Subtract => self.instructions.push(Instruction::Subtract),
-            Operator::Multiply => self.instructions.push(Instruction::Multiply),
-            Operator::Divide => self.instructions.push(Instruction::Divide),
-            Operator::Modulo => self.instructions.push(Instruction::Modulo),
-        }
+        self.instructions.push(data.2);
         Ok(())
     }
 

@@ -1,14 +1,8 @@
-pub enum Operator {
-    Addict,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-}
+use crate::Instruction;
 
 pub enum Node {
     Integer(i64),
-    Binary(Box<(Node, Node, Operator)>),
+    Binary(Box<(Node, Node, Instruction)>),
 }
 
 impl Node {
@@ -16,7 +10,7 @@ impl Node {
         Self::Integer(value)
     }
 
-    pub fn new_binary(left: Self, right: Self, operator: Operator) -> Self {
-        Self::Binary(Box::new((left, right, operator)))
+    pub fn new_binary(left: Self, right: Self, instruction: Instruction) -> Self {
+        Self::Binary(Box::new((left, right, instruction)))
     }
 }
