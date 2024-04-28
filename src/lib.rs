@@ -12,7 +12,6 @@ mod vm_error;
 pub use node::*;
 pub use program::*;
 pub use instruction::*;
-pub use compiler::*;
 pub use state::*;
 pub use value::*;
 pub use vm_error::*;
@@ -22,7 +21,7 @@ pub fn parse(code: &[u8]) -> Result<Option<Node>, String> {
 }
 
 pub fn compile(ast: &Option<Node>) -> Result<Program, String> {
-    let mut compiler = Compiler::new();
+    let mut compiler = compiler::Compiler::new();
     compiler.compile(ast)?;
     Ok(compiler.finish())
 }
