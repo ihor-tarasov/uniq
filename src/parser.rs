@@ -1,5 +1,33 @@
 use crate::{lexer::Lexer, token::Token, Instruction, Node};
 
+#[derive(PartialEq, PartialOrd, Clone, Copy)]
+enum Precedence {
+    Primary = 0,
+    Term = 1,
+    Factor = 2,
+}
+
+impl Precedence {
+    fn next(self) -> Self {
+        match self {
+            Self::Primary => Self::Term,
+            Self::Term => Self::Factor,
+            Self::Factor => Self::Factor,
+        }
+    }
+}
+
+fn precedence_and_instruction_from_token(token: &Token) -> Option<(Precedence, Instruction)> {
+    match token {
+        Token::Plus => Some((Precedence::Term, Instruction::Addict)),
+        Token::Minus => Some((Precedence::Term, Instruction::Subtract)),
+        Token::Asterisk => Some((Precedence::Factor, Instruction::Multiply)),
+        Token::Slash => Some((Precedence::Factor, Instruction::Divide)),
+        Token::Percent => Some((Precedence::Factor, Instruction::Modulo)),
+        _ => None,
+    }
+}
+
 pub struct Parser<I> {
     lexer: Lexer<I>,
     token: Token,
@@ -42,54 +70,33 @@ where
         }
     }
 
-    fn binary_helper<N, O>(&mut self, next: &N, oper: &O) -> Result<Node, String>
-    where
-        N: Fn(&mut Self) -> Result<Node, String>,
-        O: Fn(&Token) -> Option<Instruction>,
-    {
-        let mut node = next(self)?;
-        while let Some(operator) = oper(&self.token) {
+    fn binary(&mut self, expression_precedence: Precedence, mut left: Node) -> Result<Node, String> {
+        while let Some((token_precedence, instruction)) = precedence_and_instruction_from_token(&self.token) {
+            if token_precedence < expression_precedence {
+                break;
+            }
             self.advance();
-            let right = self.binary_helper(next, oper)?;
-            node = Node::new_binary(node, right, operator);
+            let mut right = self.primary()?;
+            if let Some((next_precedence, _)) = precedence_and_instruction_from_token(&self.token) {
+                if token_precedence < next_precedence {
+                    right = self.binary(token_precedence.next(), right)?;
+                }
+            }
+            left = Node::new_binary(left, right, instruction);
         }
-        Ok(node)
+        Ok(left)
     }
 
-    fn factor_operator(token: &Token) -> Option<Instruction> {
-        match token {
-            Token::Asterisk => Some(Instruction::Multiply),
-            Token::Slash => Some(Instruction::Divide),
-            Token::Percent => Some(Instruction::Modulo),
-            _ => None,
-        }
-    }
-
-    fn factor(&mut self) -> Result<Node, String> {
-        self.binary_helper(&Self::primary, &Self::factor_operator)
-    }
-
-    fn term_operator(token: &Token) -> Option<Instruction> {
-        match token {
-            Token::Plus => Some(Instruction::Addict),
-            Token::Minus => Some(Instruction::Subtract),
-            _ => None,
-        }
-    }
-
-    fn term(&mut self) -> Result<Node, String> {
-        self.binary_helper(&Self::factor, &Self::term_operator)
-    }
-
-    fn binary(&mut self) -> Result<Node, String> {
-        self.term()
+    fn expression(&mut self) -> Result<Node, String> {
+        let left = self.primary()?;
+        self.binary(Precedence::Primary, left)
     }
 
     pub fn parse(&mut self) -> Result<Option<Node>, String> {
         if self.token == Token::End {
             Ok(None)
         } else {
-            let node = self.binary()?;
+            let node = self.expression()?;
             match self.next() {
                 Token::Unknown(c) => Err(format!(
                     "Expected end, found unknown character '{}'.",
