@@ -12,7 +12,7 @@ impl Precedence {
         match self {
             Self::Primary => Self::Term,
             Self::Term => Self::Factor,
-            Self::Factor => Self::Factor,
+            Self::Factor => unreachable!(),
         }
     }
 }
