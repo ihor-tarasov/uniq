@@ -42,6 +42,12 @@ impl State {
         Ok(true)
     }
 
+    fn float(&mut self, value: f64) -> VMResult<bool> {
+        self.push(Value::Float(value))?;
+        self.program_counter += 1;
+        Ok(true)
+    }
+
     fn binary<F>(&mut self, f: F) -> VMResult<bool>
     where
         F: Fn(&mut Self, Value, Value) -> VMResult<Value>,
@@ -69,6 +75,7 @@ impl State {
         let instruction = self.fetch(program)?;
         match instruction {
             Instruction::Integer(value) => self.integer(value),
+            Instruction::Float(value) => self.float(value),
             Instruction::Addict => self.binary(Self::addict),
             Instruction::Subtract => self.binary(Self::subtract),
             Instruction::Multiply => self.binary(Self::multiply),

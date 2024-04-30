@@ -26,6 +26,7 @@ impl Compiler {
     fn node(&mut self, node: &Node) -> Result<(), String> {
         match node {
             Node::Integer(value) => self.push(Instruction::Integer(*value)),
+            Node::Float(value) => self.push(Instruction::Float(*value)),
             Node::Binary(data) => self.binary(data),
         }
     }

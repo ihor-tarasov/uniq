@@ -56,6 +56,7 @@ where
     fn primary(&mut self) -> Result<Node, String> {
         match self.next() {
             Token::Integer(value) => Ok(Node::new_integer(value)),
+            Token::Float(value) => Ok(Node::new_float(value)),
             Token::Unknown(c) => Err(format!(
                 "Expected value, found unknown character '{}'.",
                 c as char

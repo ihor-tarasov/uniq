@@ -35,7 +35,22 @@ where
         }
     }
 
-    fn integer(&mut self) -> Token {
+    fn real(&mut self, first_part: i64) -> Token {
+        let mut accumulator = first_part as f64;
+        let mut denominator = 0.0;
+        while let Some(c) = self.current {
+            if c.is_ascii_digit() {
+                denominator += 10.0;
+                accumulator += ((c - b'0') as f64) / denominator;
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Token::Float(accumulator)
+    }
+
+    fn number(&mut self) -> Token {
         let mut accumulator = 0i64;
         while let Some(c) = self.current {
             if c.is_ascii_digit() {
@@ -49,6 +64,9 @@ where
                 }
                 accumulator = next;
                 self.advance();
+            } else if c == b'.' {
+                self.advance();
+                return self.real(accumulator);
             } else {
                 break;
             }
@@ -65,7 +83,7 @@ where
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
                 b'%' => self.single(Token::Percent),
-                b'0'..=b'9' => self.integer(),
+                b'0'..=b'9' => self.number(),
                 _ => self.single(Token::Unknown(c)),
             }
         } else {
