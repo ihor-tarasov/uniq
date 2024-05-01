@@ -89,4 +89,8 @@ impl State {
         while self.step(program)? {}
         self.pop()
     }
+
+    pub fn program_counter(&self) -> usize {
+        self.program_counter
+    }
 }

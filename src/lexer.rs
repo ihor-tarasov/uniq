@@ -1,8 +1,10 @@
-use crate::token::Token;
+use crate::token::{Token, TokenLocation};
 
 pub struct Lexer<I> {
     iter: I,
     current: Option<u8>,
+    offset: u32,
+    location: TokenLocation,
 }
 
 impl<I> Lexer<I>
@@ -13,11 +15,14 @@ where
         Self {
             current: iter.next(),
             iter,
+            offset: 0,
+            location: TokenLocation::default(),
         }
     }
 
     fn advance(&mut self) {
         self.current = self.iter.next();
+        self.offset += 1;
     }
 
     fn single(&mut self, kind: Token) -> Token {
@@ -28,7 +33,13 @@ where
     fn whitespaces(&mut self) {
         while let Some(c) = self.current {
             if c.is_ascii_whitespace() {
-                self.advance();
+                self.current = self.iter.next();
+                if c == b'\n' {
+                    self.location.line += 1;
+                    self.offset = 0;
+                } else {
+                    self.offset += 1;
+                }
             } else {
                 break;
             }
@@ -76,7 +87,8 @@ where
 
     pub fn next(&mut self) -> Token {
         self.whitespaces();
-        if let Some(c) = self.current {
+        self.location.column = self.offset;
+        let token = if let Some(c) = self.current {
             match c {
                 b'+' => self.single(Token::Plus),
                 b'-' => self.single(Token::Minus),
@@ -88,6 +100,12 @@ where
             }
         } else {
             Token::End
-        }
+        };
+        self.location.length = self.offset - self.location.column;
+        token
+    }
+
+    pub fn location(&self) -> TokenLocation {
+        self.location
     }
 }

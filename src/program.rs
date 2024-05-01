@@ -1,25 +1,34 @@
-use std::{error::Error, fs::File};
+use std::{collections::HashMap, error::Error, fs::File};
 
 use serde::{Deserialize, Serialize};
 
-use crate::instruction::Instruction;
+use crate::{instruction::Instruction, token::TokenLocation};
 
 #[derive(Serialize, Deserialize)]
 pub struct Program {
     version: String,
     instructions: Box<[Instruction]>,
+    locations: HashMap<usize, TokenLocation>,
 }
 
 impl Program {
-    pub(crate) fn new(instructions: Box<[Instruction]>) -> Self {
+    pub(crate) fn new(
+        instructions: Box<[Instruction]>,
+        locations: HashMap<usize, TokenLocation>,
+    ) -> Self {
         Self {
             version: env!("CARGO_PKG_VERSION").to_string(),
             instructions,
+            locations,
         }
     }
 
     pub fn instruction(&self, index: usize) -> Option<Instruction> {
         self.instructions.get(index).copied()
+    }
+
+    pub fn location(&self, index: usize) -> Option<TokenLocation> {
+        self.locations.get(&index).copied()
     }
 
     pub fn save_json(&self, path: &str, pretty: bool) -> Result<(), Box<dyn Error>> {

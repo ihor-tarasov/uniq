@@ -1,5 +1,7 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 #[derive(PartialEq)]
 pub enum Token {
     Integer(i64),
@@ -12,6 +14,13 @@ pub enum Token {
     Unknown(u8),
     ToBigInteger,
     End,
+}
+
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
+pub struct TokenLocation {
+    pub line: u32,
+    pub column: u32,
+    pub length: u32,
 }
 
 impl fmt::Display for Token {

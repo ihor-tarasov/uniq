@@ -1,9 +1,16 @@
-use crate::Instruction;
+use crate::{token::TokenLocation, Instruction};
+
+pub struct Binary {
+    pub left: Node,
+    pub right: Node,
+    pub instruction: Instruction,
+    pub location: TokenLocation,
+}
 
 pub enum Node {
     Integer(i64),
     Float(f64),
-    Binary(Box<(Node, Node, Instruction)>),
+    Binary(Box<Binary>),
 }
 
 impl Node {
@@ -15,7 +22,17 @@ impl Node {
         Self::Float(value)
     }
 
-    pub fn new_binary(left: Self, right: Self, instruction: Instruction) -> Self {
-        Self::Binary(Box::new((left, right, instruction)))
+    pub fn new_binary(
+        left: Self,
+        right: Self,
+        instruction: Instruction,
+        location: TokenLocation,
+    ) -> Self {
+        Self::Binary(Box::new(Binary {
+            left,
+            right,
+            instruction,
+            location,
+        }))
     }
 }

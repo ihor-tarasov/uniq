@@ -1,4 +1,4 @@
-use crate::{lexer::Lexer, token::Token, Instruction, Node};
+use crate::{lexer::Lexer, source_error, token::Token, Instruction, Node, SourceResult};
 
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
 enum Precedence {
@@ -49,33 +49,38 @@ where
         self.token = self.lexer.next();
     }
 
-    fn next(&mut self) -> Token {
-        std::mem::replace(&mut self.token, self.lexer.next())
+    fn error<T>(&self, message: String) -> SourceResult<T> {
+        source_error(message, self.lexer.location())
     }
 
-    fn primary(&mut self) -> Result<Node, String> {
-        match self.next() {
-            Token::Integer(value) => Ok(Node::new_integer(value)),
-            Token::Float(value) => Ok(Node::new_float(value)),
-            Token::Unknown(c) => Err(format!(
+    fn primary(&mut self) -> SourceResult<Node> {
+        let result = match &self.token {
+            Token::Integer(value) => Node::new_integer(*value),
+            Token::Float(value) => Node::new_float(*value),
+            Token::Unknown(c) => self.error(format!(
                 "Expected value, found unknown character '{}'.",
-                c as char
-            )),
-            Token::End => Err(format!("Expected value, found end.")),
-            Token::ToBigInteger => Err(format!(
+                *c as char
+            ))?,
+            Token::End => self.error(format!("Expected value, found end."))?,
+            Token::ToBigInteger => self.error(format!(
                 "Integer to big, supported range is from {} to {}",
                 i64::MIN,
                 i64::MAX
-            )),
-            token => Err(format!("Expected value, found {token}.")),
-        }
+            ))?,
+            token => self.error(format!("Expected value, found {token}."))?,
+        };
+        self.advance();
+        Ok(result)
     }
 
-    fn binary(&mut self, expression_precedence: Precedence, mut left: Node) -> Result<Node, String> {
-        while let Some((token_precedence, instruction)) = precedence_and_instruction_from_token(&self.token) {
+    fn binary(&mut self, expression_precedence: Precedence, mut left: Node) -> SourceResult<Node> {
+        while let Some((token_precedence, instruction)) =
+            precedence_and_instruction_from_token(&self.token)
+        {
             if token_precedence < expression_precedence {
                 break;
             }
+            let location = self.lexer.location();
             self.advance();
             let mut right = self.primary()?;
             if let Some((next_precedence, _)) = precedence_and_instruction_from_token(&self.token) {
@@ -83,33 +88,33 @@ where
                     right = self.binary(token_precedence.next(), right)?;
                 }
             }
-            left = Node::new_binary(left, right, instruction);
+            left = Node::new_binary(left, right, instruction, location);
         }
         Ok(left)
     }
 
-    fn expression(&mut self) -> Result<Node, String> {
+    fn expression(&mut self) -> SourceResult<Node> {
         let left = self.primary()?;
         self.binary(Precedence::Primary, left)
     }
 
-    pub fn parse(&mut self) -> Result<Option<Node>, String> {
+    pub fn parse(&mut self) -> SourceResult<Option<Node>> {
         if self.token == Token::End {
             Ok(None)
         } else {
             let node = self.expression()?;
-            match self.next() {
-                Token::Unknown(c) => Err(format!(
+            match &self.token {
+                Token::Unknown(c) => self.error(format!(
                     "Expected end, found unknown character '{}'.",
-                    c as char
-                )),
-                Token::ToBigInteger => Err(format!(
+                    *c as char
+                ))?,
+                Token::ToBigInteger => self.error(format!(
                     "Integer to big, supported range is from {} to {}",
                     i64::MIN,
                     i64::MAX
-                )),
+                ))?,
                 Token::End => Ok(Some(node)),
-                token => Err(format!("Expected end, found {token}")),
+                token => self.error(format!("Expected end, found {token}"))?,
             }
         }
     }
