@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum Instruction {
     Integer(i64),
     Float(f64),
+    Boolean(bool),
     Addict,
     Subtract,
     Multiply,

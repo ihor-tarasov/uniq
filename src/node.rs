@@ -8,12 +8,17 @@ pub struct Binary {
 }
 
 pub enum Node {
+    Boolean(bool),
     Integer(i64),
     Float(f64),
     Binary(Box<Binary>),
 }
 
 impl Node {
+    pub fn new_boolean(value: bool) -> Self {
+        Self::Boolean(value)
+    }
+
     pub fn new_integer(value: i64) -> Self {
         Self::Integer(value)
     }

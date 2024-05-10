@@ -9,6 +9,7 @@ mod state;
 mod token;
 mod value;
 mod vm_error;
+mod identifiers;
 
 pub use instruction::*;
 pub use node::*;

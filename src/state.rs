@@ -48,6 +48,12 @@ impl State {
         Ok(true)
     }
 
+    fn boolean(&mut self, value: bool) -> VMResult<bool> {
+        self.push(Value::Boolean(value))?;
+        self.program_counter += 1;
+        Ok(true)
+    }
+
     fn binary<F>(&mut self, f: F) -> VMResult<bool>
     where
         F: Fn(&mut Self, Value, Value) -> VMResult<Value>,
@@ -76,6 +82,7 @@ impl State {
         match instruction {
             Instruction::Integer(value) => self.integer(value),
             Instruction::Float(value) => self.float(value),
+            Instruction::Boolean(value) => self.boolean(value),
             Instruction::Addict => self.binary(Self::addict),
             Instruction::Subtract => self.binary(Self::subtract),
             Instruction::Multiply => self.binary(Self::multiply),

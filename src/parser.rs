@@ -1,4 +1,9 @@
-use crate::{lexer::Lexer, source_error, token::Token, Instruction, Node, SourceResult};
+use crate::{
+    lexer::Lexer,
+    source_error,
+    token::{Token, TokenWriter},
+    Instruction, Node, SourceResult,
+};
 
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
 enum Precedence {
@@ -63,6 +68,8 @@ where
 
     fn primary(&mut self) -> SourceResult<Node> {
         let result = match &self.token {
+            Token::True => Node::new_boolean(true),
+            Token::False => Node::new_boolean(false),
             Token::Integer(value) => Node::new_integer(*value),
             Token::Float(value) => Node::new_float(*value),
             Token::Unknown(c) => self.error(format!(
@@ -75,7 +82,10 @@ where
                 i64::MIN,
                 i64::MAX
             ))?,
-            token => self.error(format!("Expected value, found '{token}'."))?,
+            token => {
+                let writer = TokenWriter::new(token, self.lexer.identifiers());
+                self.error(format!("Expected value, found '{writer}'."))?
+            }
         };
         self.advance();
         Ok(result)
@@ -122,7 +132,10 @@ where
                     i64::MAX
                 ))?,
                 Token::End => Ok(Some(node)),
-                token => self.error(format!("Expected end, found '{token}'"))?,
+                token => {
+                    let writer = TokenWriter::new(token, self.lexer.identifiers());
+                    self.error(format!("Expected end, found '{writer}'"))?
+                }
             }
         }
     }

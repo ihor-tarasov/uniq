@@ -31,6 +31,7 @@ impl Compiler {
 
     fn node(&mut self, node: &Node) -> SourceResult<()> {
         match node {
+            Node::Boolean(value) => self.push(Instruction::Boolean(*value)),
             Node::Integer(value) => self.push(Instruction::Integer(*value)),
             Node::Float(value) => self.push(Instruction::Float(*value)),
             Node::Binary(binary) => self.binary(binary),

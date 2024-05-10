@@ -1,10 +1,11 @@
-use crate::token::{Token, TokenLocation};
+use crate::{identifiers::Identifiers, token::{Token, TokenLocation}};
 
 pub struct Lexer<I> {
     iter: I,
     current: Option<u8>,
     offset: u32,
     location: TokenLocation,
+    identifiers: Identifiers,
 }
 
 impl<I> Lexer<I>
@@ -17,6 +18,7 @@ where
             iter,
             offset: 0,
             location: TokenLocation::default(),
+            identifiers: Identifiers::new(),
         }
     }
 
@@ -117,6 +119,32 @@ where
         Token::Integer(accumulator)
     }
 
+    fn identifier(&mut self) -> Token {
+        let start = self.identifiers.start();
+        while let Some(c) = self.current {
+            if c.is_ascii_alphanumeric() || c == b'_' {
+                self.identifiers.push(c);
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        let id = self.identifiers.finish(start);
+        let mut remove = true;
+        let token = match self.identifiers.get(&id) {
+            b"true" => Token::True,
+            b"false" => Token::False,
+            _ => {
+                remove = false;
+                Token::Identifier(id)
+            }
+        };
+        if remove {
+            self.identifiers.restart(start);
+        }
+        token
+    }
+
     pub fn next(&mut self) -> Token {
         self.whitespaces();
         self.location.column = self.offset;
@@ -132,6 +160,7 @@ where
                 b'>' => self.greater(),
                 b'=' => self.equals(),
                 b'0'..=b'9' => self.number(),
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.identifier(),
                 _ => self.single(Token::Unknown(c)),
             }
         } else {
@@ -143,5 +172,9 @@ where
 
     pub fn location(&self) -> TokenLocation {
         self.location
+    }
+
+    pub fn identifiers(&self) -> &Identifiers {
+        &self.identifiers
     }
 }
