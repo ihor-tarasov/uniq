@@ -30,6 +30,38 @@ where
         kind
     }
 
+    fn less(&mut self) -> Token {
+        self.advance();
+        match self.current {
+            Some(b'=') => self.single(Token::LessEquals),
+            _ => Token::Less,
+        }
+    }
+
+    fn greater(&mut self) -> Token {
+        self.advance();
+        match self.current {
+            Some(b'=') => self.single(Token::GreaterEquals),
+            _ => Token::Greater,
+        }
+    }
+
+    fn equals(&mut self) -> Token {
+        self.advance();
+        match self.current {
+            Some(b'=') => self.single(Token::EqualsEquals),
+            _ => Token::Equals,
+        }
+    }
+
+    fn exclamation(&mut self) -> Token {
+        self.advance();
+        match self.current {
+            Some(b'=') => self.single(Token::ExclamationEquals),
+            _ => Token::Exclamation,
+        }
+    }
+
     fn whitespaces(&mut self) {
         while let Some(c) = self.current {
             if c.is_ascii_whitespace() {
@@ -95,6 +127,10 @@ where
                 b'*' => self.single(Token::Asterisk),
                 b'/' => self.single(Token::Slash),
                 b'%' => self.single(Token::Percent),
+                b'!' => self.exclamation(),
+                b'<' => self.less(),
+                b'>' => self.greater(),
+                b'=' => self.equals(),
                 b'0'..=b'9' => self.number(),
                 _ => self.single(Token::Unknown(c)),
             }

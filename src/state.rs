@@ -81,6 +81,12 @@ impl State {
             Instruction::Multiply => self.binary(Self::multiply),
             Instruction::Divide => self.binary(Self::divide),
             Instruction::Modulo => self.binary(Self::modulo),
+            Instruction::Equals => self.binary(Self::equals),
+            Instruction::NotEquals => self.binary(Self::not_equals),
+            Instruction::Less => self.binary(Self::less),
+            Instruction::Greater => self.binary(Self::greater),
+            Instruction::LessEquals => self.binary(Self::less_equals),
+            Instruction::GreaterEquals => self.binary(Self::greater_equals),
             Instruction::End => self.end(),
         }
     }

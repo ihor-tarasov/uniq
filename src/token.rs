@@ -11,6 +11,14 @@ pub enum Token {
     Asterisk, // '*'
     Slash, // '/'
     Percent, // '%'
+    Less, // '<'
+    Greater, // '>'
+    Equals, // '='
+    EqualsEquals, // '=='
+    LessEquals, // '<='
+    GreaterEquals, // '>='
+    Exclamation, // '!'
+    ExclamationEquals, // '!='
     Unknown(u8),
     ToBigInteger,
     End,
@@ -33,6 +41,14 @@ impl fmt::Display for Token {
             Token::Asterisk => write!(f, "*"),
             Token::Slash => write!(f, "/"),
             Token::Percent => write!(f, "%"),
+            Token::Less => write!(f, "<"),
+            Token::Greater => write!(f, ">"),
+            Token::Equals => write!(f, "="),
+            Token::EqualsEquals => write!(f, "=="),
+            Token::LessEquals => write!(f, "<="),
+            Token::GreaterEquals => write!(f, ">="),
+            Token::Exclamation => write!(f, "!"),
+            Token::ExclamationEquals => write!(f, "!="),
             Token::Unknown(c) => write!(f, "{}", *c as char),
             Token::ToBigInteger => write!(f, "to big integer"),
             Token::End => write!(f, ""),

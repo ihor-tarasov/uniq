@@ -9,5 +9,11 @@ pub enum Instruction {
     Multiply,
     Divide,
     Modulo,
+    Equals,
+    NotEquals,
+    Less,
+    Greater,
+    LessEquals,
+    GreaterEquals,
     End,
 }

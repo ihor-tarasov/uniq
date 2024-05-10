@@ -2,15 +2,17 @@ use crate::{lexer::Lexer, source_error, token::Token, Instruction, Node, SourceR
 
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
 enum Precedence {
-    Primary = 0,
-    Term = 1,
-    Factor = 2,
+    None = 0,
+    Comparison = 1,
+    Term = 2,
+    Factor = 3,
 }
 
 impl Precedence {
     fn next(self) -> Self {
         match self {
-            Self::Primary => Self::Term,
+            Self::None => Self::Comparison,
+            Self::Comparison => Self::Term,
             Self::Term => Self::Factor,
             Self::Factor => unreachable!(),
         }
@@ -24,6 +26,12 @@ fn precedence_and_instruction_from_token(token: &Token) -> Option<(Precedence, I
         Token::Asterisk => Some((Precedence::Factor, Instruction::Multiply)),
         Token::Slash => Some((Precedence::Factor, Instruction::Divide)),
         Token::Percent => Some((Precedence::Factor, Instruction::Modulo)),
+        Token::EqualsEquals => Some((Precedence::Comparison, Instruction::Equals)),
+        Token::ExclamationEquals => Some((Precedence::Comparison, Instruction::NotEquals)),
+        Token::Less => Some((Precedence::Comparison, Instruction::Less)),
+        Token::Greater => Some((Precedence::Comparison, Instruction::Greater)),
+        Token::LessEquals => Some((Precedence::Comparison, Instruction::LessEquals)),
+        Token::GreaterEquals => Some((Precedence::Comparison, Instruction::GreaterEquals)),
         _ => None,
     }
 }
@@ -95,7 +103,7 @@ where
 
     fn expression(&mut self) -> SourceResult<Node> {
         let left = self.primary()?;
-        self.binary(Precedence::Primary, left)
+        self.binary(Precedence::None, left)
     }
 
     pub fn parse(&mut self) -> SourceResult<Option<Node>> {

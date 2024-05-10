@@ -83,4 +83,64 @@ impl State {
             (l, r) => vm_error(format!("Unable to modulo {l} and {r}")),
         }
     }
+
+    pub fn less(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l < r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) < r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l < r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l < r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
+
+    pub fn greater(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l > r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) > r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l > r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l > r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
+
+    pub fn equals(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) == r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l == r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l == r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
+
+    pub fn not_equals(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l != r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) != r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l != r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l != r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
+
+    pub fn less_equals(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) <= r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l <= r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
+
+    pub fn greater_equals(&mut self, l: Value, r: Value) -> VMResult<Value> {
+        match (l, r) {
+            (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r)),
+            (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) >= r)),
+            (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r as f64)),
+            (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l >= r)),
+            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+        }
+    }
 }
