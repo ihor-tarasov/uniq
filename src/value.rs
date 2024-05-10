@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{vm_error, State, VMResult};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Value {
     Void,
     Boolean(bool),
@@ -28,7 +28,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(l as f64 + r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l + r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l + r)),
-            (l, r) => vm_error(format!("Unable to addict {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to addict '{l}' and '{r}'")),
         }
     }
 
@@ -38,7 +38,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(l as f64 - r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l - r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l - r)),
-            (l, r) => vm_error(format!("Unable to subtract {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to subtract '{l}' and '{r}'")),
         }
     }
 
@@ -48,7 +48,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(l as f64 * r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l * r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l * r)),
-            (l, r) => vm_error(format!("Unable to multiply {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to multiply '{l}' and '{r}'")),
         }
     }
 
@@ -64,7 +64,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(l as f64 / r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l / r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l / r)),
-            (l, r) => vm_error(format!("Unable to divide {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to divide '{l}' and '{r}'")),
         }
     }
 
@@ -80,7 +80,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(l as f64 % r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l % r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l % r)),
-            (l, r) => vm_error(format!("Unable to modulo {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to modulo '{l}' and '{r}'")),
         }
     }
 
@@ -90,7 +90,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) < r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l < r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l < r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 
@@ -100,7 +100,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) > r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l > r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l > r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 
@@ -110,7 +110,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) == r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l == r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l == r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 
@@ -120,7 +120,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) != r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l != r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l != r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 
@@ -130,7 +130,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) <= r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l <= r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 
@@ -140,7 +140,7 @@ impl State {
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((l as f64) >= r)),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r as f64)),
             (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l >= r)),
-            (l, r) => vm_error(format!("Unable to compare {l} and {r}")),
+            (l, r) => vm_error(format!("Unable to compare '{l}' and '{r}'")),
         }
     }
 }

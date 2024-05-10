@@ -75,7 +75,7 @@ where
                 i64::MIN,
                 i64::MAX
             ))?,
-            token => self.error(format!("Expected value, found {token}."))?,
+            token => self.error(format!("Expected value, found '{token}'."))?,
         };
         self.advance();
         Ok(result)
@@ -122,7 +122,7 @@ where
                     i64::MAX
                 ))?,
                 Token::End => Ok(Some(node)),
-                token => self.error(format!("Expected end, found {token}"))?,
+                token => self.error(format!("Expected end, found '{token}'"))?,
             }
         }
     }
